@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xeris NFT - App</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">X</div>
+            <span>Xeris NFT</span>
+        </div>
+        <div class="header-right">
+            <button id="connect-btn" onclick="App.connectWallet()">Connect Wallet</button>
+            <div id="user-info" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav">
+        <button class="nav-tab active" data-view="gallery">Gallery</button>
+        <button class="nav-tab" data-view="mint">Mint</button>
+        <button class="nav-tab" data-view="marketplace">Marketplace</button>
+        <button class="nav-tab auth-required hidden" data-view="my-nfts">My NFTs</button>
+    </div>
+
+    <!-- Status bar -->
+    <div id="status-bar"></div>
+    <div id="platform-stats"></div>
+
+    <!-- Gallery View -->
+    <div id="view-gallery" class="view active">
+        <div id="gallery-grid" class="nft-grid"></div>
+    </div>
+
+    <!-- Mint View -->
+    <div id="view-mint" class="view">
+        <div class="mint-container">
+            <div class="mint-form">
+                <h2>Create AI NFT</h2>
+                <div class="form-group">
+                    <label>Name (optional)</label>
+                    <input type="text" id="mint-name" placeholder="My Awesome NFT" maxlength="100"/>
+                </div>
+                <div class="form-group">
+                    <label>Describe your vision</label>
+                    <textarea id="mint-prompt" placeholder="A cyberpunk city at sunset with neon lights reflecting on rain-soaked streets..." maxlength="500" rows="3"></textarea>
+                </div>
+                <button id="mint-btn" class="btn btn-primary" onclick="App.mintNFT()" style="width:100%">Mint NFT</button>
+                <div id="mint-preview"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Marketplace View -->
+    <div id="view-marketplace" class="view">
+        <div id="marketplace-grid" class="nft-grid"></div>
+    </div>
+
+    <!-- My NFTs View -->
+    <div id="view-my-nfts" class="view">
+        <div id="my-nfts-grid" class="nft-grid"></div>
+    </div>
+
+    <!-- NFT Detail Modal -->
+    <div id="nft-modal" class="modal" onclick="if(event.target===this)App.closeModal()">
+        <div class="modal-inner">
+            <button class="modal-close" onclick="App.closeModal()">X</button>
+            <div id="nft-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script src="/js/xeris-tx.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
