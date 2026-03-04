@@ -1,8 +1,12 @@
 // ============================================
 // NFT-XERIS — FRONTEND APP LOGIC
+// Uses XerisDApp from xeris-sdk for wallet connect
 // ============================================
 
 const App = (() => {
+    // Initialize XerisDApp (from xeris-sdk)
+    const dapp = XerisDApp.testnet();
+
     let state = {
         connected: false,
         address: null,
@@ -28,26 +32,40 @@ const App = (() => {
         return data;
     }
 
-    // ─── WALLET CONNECTION ───────────────────────────────────────────
+    // ─── WALLET CONNECTION (via XerisDApp SDK) ────────────────────────
 
     async function connectWallet() {
-        if (!window.xeris) {
-            showToast('Please open in Xeris Wallet Browser', 'error');
-            return;
-        }
-
         try {
-            setStatus('Connecting wallet...');
-            const address = await window.xeris.connect();
-            if (!address) throw new Error('No address returned');
+            setStatus('Detecting wallet...');
 
-            // Get challenge
+            // Use XerisDApp.connect() — handles provider detection,
+            // wallet popup, and event subscriptions automatically
+            const address = await dapp.connect({ onlyIfTrusted: false });
+
+            setStatus('Authenticating...');
+
+            // Get challenge from server
             const { challenge } = await api('POST', '/api/auth/challenge', { address });
 
-            // Sign challenge (simplified — wallet browser handles auth)
+            // Sign the challenge with the wallet for proper auth
+            let signature = 'wallet-browser-auth';
+            try {
+                const signResult = await dapp.signMessage(challenge);
+                if (signResult && signResult.signature) {
+                    const sigBytes = new Uint8Array(signResult.signature);
+                    signature = btoa(String.fromCharCode(...sigBytes));
+                } else if (typeof signResult === 'string') {
+                    signature = signResult;
+                }
+            } catch (e) {
+                // Wallet may not support signMessage — fall back to simple auth
+                console.warn('signMessage not supported, using fallback auth');
+            }
+
+            // Authenticate with server
             const { token, user } = await api('POST', '/api/auth/connect', {
                 address,
-                signature: 'wallet-browser-auth'
+                signature
             });
 
             state.connected = true;
@@ -58,25 +76,54 @@ const App = (() => {
             localStorage.setItem('nft_token', token);
             localStorage.setItem('nft_address', address);
 
+            // Listen for SDK disconnect/account change events
+            dapp.on('disconnect', () => {
+                disconnectWallet();
+            });
+
+            dapp.on('accountChanged', (newAddr) => {
+                showToast('Account changed — reconnecting...', 'info');
+                state.address = newAddr;
+                localStorage.setItem('nft_address', newAddr);
+                updateUI();
+                showView(state.currentView);
+            });
+
             updateUI();
             showToast('Wallet connected!', 'success');
             setStatus('');
+
+            // Load balance in background
+            loadBalance();
         } catch (e) {
             showToast('Connection failed: ' + e.message, 'error');
             setStatus('');
         }
     }
 
-    function disconnectWallet() {
+    async function disconnectWallet() {
+        await dapp.disconnect();
         state.connected = false;
         state.address = null;
         state.token = null;
         state.user = null;
         localStorage.removeItem('nft_token');
         localStorage.removeItem('nft_address');
-        if (window.xeris) window.xeris.disconnect();
         updateUI();
         showView('gallery');
+    }
+
+    // Load and display wallet balance
+    async function loadBalance() {
+        if (!state.connected) return;
+        try {
+            const lamports = await dapp.getBalance();
+            const xrs = (lamports / LAMPORTS_PER_XRS).toFixed(4);
+            const balEl = document.getElementById('wallet-balance');
+            if (balEl) balEl.textContent = xrs + ' XRS';
+        } catch (e) {
+            // Balance display is optional
+        }
     }
 
     // Try to restore session from localStorage
@@ -92,6 +139,14 @@ const App = (() => {
             const { user } = await api('GET', '/api/auth/me');
             state.connected = true;
             state.user = user;
+
+            // Try to reconnect wallet provider silently
+            try {
+                await dapp.connect({ onlyIfTrusted: true });
+            } catch (e) {
+                // Provider not available — session-only mode
+            }
+
             updateUI();
         } catch (e) {
             // Token expired
@@ -218,7 +273,7 @@ const App = (() => {
 
         const mintBtn = document.getElementById('mint-btn');
         mintBtn.disabled = true;
-        mintBtn.textContent = 'Minting...';
+        mintBtn.innerHTML = '<span class="spinner"></span> Minting...';
         setStatus('Generating AI image & minting on-chain...');
 
         try {
@@ -244,7 +299,8 @@ const App = (() => {
             showToast('Mint failed: ' + e.message, 'error');
         } finally {
             mintBtn.disabled = false;
-            mintBtn.textContent = 'Mint NFT';
+            mintBtn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px;"></i> Mint NFT';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             setStatus('');
         }
     }
@@ -342,7 +398,7 @@ const App = (() => {
             return;
         }
 
-        if (!confirm('Buy this NFT for ' + (priceLamports / XerisTx.LAMPORTS_PER_XRS) + ' XRS?')) return;
+        if (!confirm('Buy this NFT for ' + (priceLamports / LAMPORTS_PER_XRS) + ' XRS?')) return;
 
         setStatus('Building payment transaction...');
 
@@ -351,35 +407,20 @@ const App = (() => {
             const stats = await api('GET', '/api/stats');
             const escrowAddress = stats.escrowAddress;
 
-            // Build payment tx
-            const { unsignedTx, message } = await XerisTx.buildPaymentTx(
-                state.address,
-                escrowAddress,
-                priceLamports
-            );
+            // Use XerisDApp to transfer XRS to escrow
+            setStatus('Please approve transaction in wallet...');
+            const result = await dapp.transferXrs(escrowAddress, priceLamports / LAMPORTS_PER_XRS);
 
-            // Send to wallet for signing
-            setStatus('Please sign transaction in wallet...');
-            const signedTx = await window.xeris.signTransaction(unsignedTx);
-
-            // Convert to base64
-            let txBase64;
-            if (signedTx instanceof Uint8Array || signedTx instanceof ArrayBuffer) {
-                const bytes = new Uint8Array(signedTx);
-                txBase64 = btoa(String.fromCharCode(...bytes));
-            } else if (typeof signedTx === 'string') {
-                txBase64 = signedTx;
-            } else {
-                throw new Error('Unexpected signed tx format');
-            }
-
-            // Submit buy order
-            setStatus('Submitting purchase...');
-            const result = await api('POST', '/api/listings/' + listingId + '/buy', { txBase64 });
+            // Submit buy order with the tx signature
+            setStatus('Confirming purchase...');
+            const buyResult = await api('POST', '/api/listings/' + listingId + '/buy', {
+                txSignature: result.signature
+            });
 
             showToast('NFT purchased successfully!', 'success');
             closeModal();
             loadMyNFTs();
+            loadBalance();
         } catch (e) {
             showToast('Purchase failed: ' + e.message, 'error');
         } finally {
@@ -419,8 +460,10 @@ const App = (() => {
             userInfo.classList.remove('hidden');
             userInfo.innerHTML = `
                 <span class="wallet-addr">${shortAddr(state.address)}</span>
+                <span id="wallet-balance" class="wallet-balance"></span>
                 <button class="btn btn-small" onclick="App.disconnectWallet()">Disconnect</button>`;
             authActions.forEach(el => el.classList.remove('hidden'));
+            loadBalance();
         } else {
             connectBtn.classList.remove('hidden');
             userInfo.classList.add('hidden');
@@ -462,6 +505,11 @@ const App = (() => {
         // Nav tabs
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', () => showView(tab.dataset.view));
+        });
+
+        // Keyboard shortcut: Escape closes modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
         });
 
         // Restore session

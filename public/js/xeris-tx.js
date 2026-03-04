@@ -173,10 +173,28 @@ const XerisTx = (() => {
         return { unsignedTx, message, blockhash: blockhashStr };
     }
 
+    // Generic instruction encoder: variant u32 + concatenated data parts
+    function encodeInstruction(variant, dataParts) {
+        const parts = [writeU32LE(variant), ...dataParts];
+        return concatBytes(...parts);
+    }
+
+    // Encode bincode Vec<u8> (u64 length prefix + raw bytes)
+    function encodeBincodeVec(bytes) {
+        return concatBytes(writeU64LE(bytes.length), bytes);
+    }
+
     return {
         base58Decode,
         base58Encode,
+        encodeCompactU16,
+        writeU32LE,
+        writeU64LE,
+        encodeBincodeString,
+        encodeBincodeVec,
+        encodeInstruction,
         encodeNativeTransfer,
+        concatBytes,
         buildMessage,
         buildUnsignedTx,
         assembleSignedTx,

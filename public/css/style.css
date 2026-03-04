@@ -85,6 +85,12 @@ body {
     border-radius: 6px;
 }
 
+.wallet-balance {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--success);
+}
+
 /* ─── NAVIGATION ──────────────────────────────────────────────── */
 
 .nav {
