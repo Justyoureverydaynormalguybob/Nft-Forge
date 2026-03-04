@@ -5,8 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xeris NFT - AI-Generated NFT Platform</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <style>
-        .landing {
+        body { font-family: 'Inter', sans-serif; }
+
+        /* ─── HERO ─── */
+        .hero {
+            position: relative;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -14,97 +21,562 @@
             justify-content: center;
             text-align: center;
             padding: 40px 20px;
+            overflow: hidden;
         }
+
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            background:
+                url('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1920&q=80')
+                center / cover no-repeat;
+        }
+
+        .hero-bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                180deg,
+                rgba(10, 14, 26, 0.88) 0%,
+                rgba(10, 14, 26, 0.75) 40%,
+                rgba(10, 14, 26, 0.92) 100%
+            );
+        }
+
+        /* Animated floating orbs */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.3;
+            animation: float 8s ease-in-out infinite;
+            z-index: 1;
+        }
+        .orb-1 {
+            width: 400px; height: 400px;
+            background: #4f8fff;
+            top: -100px; left: -100px;
+            animation-delay: 0s;
+        }
+        .orb-2 {
+            width: 350px; height: 350px;
+            background: #7c3aed;
+            bottom: -80px; right: -80px;
+            animation-delay: -3s;
+        }
+        .orb-3 {
+            width: 250px; height: 250px;
+            background: #10b981;
+            top: 50%; left: 60%;
+            opacity: 0.15;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-30px) scale(1.05); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            max-width: 700px;
+        }
+
+        /* ─── LANDING NAV ─── */
+        .landing-nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            z-index: 100;
+            background: rgba(10, 14, 26, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(42, 52, 80, 0.5);
+        }
+
+        .landing-nav .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .landing-nav .logo-icon {
+            width: 36px; height: 36px;
+            background: var(--gradient);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .landing-nav .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .landing-nav .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .landing-nav .nav-links a:hover { color: var(--text-primary); }
+
+        /* ─── HERO TEXT ─── */
+        .badge-testnet {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 28px;
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+
         .landing-title {
-            font-size: 48px;
+            font-size: 56px;
             font-weight: 800;
             background: var(--gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            letter-spacing: -1px;
+            line-height: 1.1;
+        }
+
+        .landing-tagline {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text-primary);
             margin-bottom: 16px;
         }
+
         .landing-sub {
-            font-size: 18px;
+            font-size: 16px;
             color: var(--text-secondary);
-            max-width: 500px;
-            margin-bottom: 32px;
-            line-height: 1.6;
+            max-width: 480px;
+            margin: 0 auto 36px;
+            line-height: 1.7;
         }
+
         .landing-cta {
             display: flex;
             gap: 16px;
             flex-wrap: wrap;
             justify-content: center;
         }
+
         .landing-cta .btn {
             padding: 14px 32px;
             font-size: 16px;
         }
+
+        .landing-cta .btn i { width: 18px; height: 18px; }
+
+        /* ─── HOW IT WORKS ─── */
+        .section {
+            position: relative;
+            z-index: 2;
+            padding: 80px 20px;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .section-sub {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 48px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .steps {
+            display: flex;
+            gap: 24px;
+            max-width: 900px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .step {
+            flex: 1;
+            min-width: 200px;
+            max-width: 260px;
+            text-align: center;
+            position: relative;
+        }
+
+        .step-number {
+            width: 48px; height: 48px;
+            background: var(--gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-weight: 700;
+            font-size: 18px;
+            color: white;
+        }
+
+        .step h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .step p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ─── FEATURES ─── */
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
-            max-width: 800px;
-            margin-top: 60px;
+            max-width: 960px;
+            margin: 0 auto;
         }
+
         .feature {
-            background: var(--bg-card);
-            padding: 24px;
-            border-radius: 12px;
+            background: rgba(26, 32, 53, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 28px 24px;
+            border-radius: 16px;
             border: 1px solid var(--border);
+            transition: transform 0.2s, border-color 0.2s;
         }
+        .feature:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent);
+        }
+
+        .feature-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .feature-icon i { width: 24px; height: 24px; }
+
+        .feature-icon.blue   { background: rgba(79, 143, 255, 0.15); color: #4f8fff; }
+        .feature-icon.purple { background: rgba(124, 58, 237, 0.15); color: #7c3aed; }
+        .feature-icon.green  { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .feature-icon.orange { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
         .feature h3 {
             font-size: 16px;
             margin-bottom: 8px;
-            color: var(--accent);
+            color: var(--text-primary);
         }
+
         .feature p {
             font-size: 13px;
             color: var(--text-secondary);
+            line-height: 1.6;
         }
-        .badge-testnet {
-            display: inline-block;
-            background: rgba(245, 158, 11, 0.2);
-            color: var(--warning);
-            padding: 4px 12px;
-            border-radius: 6px;
-            font-size: 12px;
+
+        /* ─── SHOWCASE / PREVIEW ─── */
+        .showcase {
+            position: relative;
+            z-index: 2;
+            padding: 60px 20px 80px;
+        }
+
+        .showcase-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .showcase-card {
+            border-radius: 16px;
+            overflow: hidden;
+            aspect-ratio: 1;
+            position: relative;
+            border: 1px solid var(--border);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .showcase-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(79, 143, 255, 0.2);
+        }
+
+        .showcase-card img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+
+        .showcase-card .overlay {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 16px;
+            background: linear-gradient(transparent, rgba(10, 14, 26, 0.9));
+        }
+        .showcase-card .overlay span {
+            font-size: 13px;
             font-weight: 600;
-            margin-bottom: 24px;
+        }
+
+        /* ─── FOOTER ─── */
+        .footer {
+            position: relative;
+            z-index: 2;
+            border-top: 1px solid var(--border);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .footer-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .footer-brand .logo-icon {
+            width: 28px; height: 28px;
+            background: var(--gradient);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover { color: var(--text-primary); }
+        .footer-links a i { width: 14px; height: 14px; }
+
+        .footer-copy {
+            width: 100%;
+            margin-top: 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 600px) {
+            .landing-title { font-size: 36px; }
+            .landing-tagline { font-size: 18px; }
+            .landing-nav { padding: 12px 16px; }
+            .landing-nav .nav-links { gap: 12px; }
+            .section { padding: 48px 16px; }
+            .footer-inner { justify-content: center; text-align: center; }
         }
     </style>
 </head>
 <body>
-    <div class="landing">
-        <div class="badge-testnet">TESTNET</div>
-        <h1 class="landing-title">Xeris NFT</h1>
-        <p class="landing-sub">
-            Create AI-generated NFTs on the Xeris blockchain.
-            Describe your vision, mint it as an NFT, and trade on the marketplace.
-        </p>
-        <div class="landing-cta">
-            <a href="/app" class="btn btn-primary">Launch App</a>
-            <a href="https://xeris-explorer.vercel.app/" target="_blank" class="btn btn-secondary">Explorer</a>
-        </div>
 
+    <!-- Navigation -->
+    <nav class="landing-nav">
+        <div class="logo">
+            <div class="logo-icon">X</div>
+            <span>Xeris NFT</span>
+        </div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How it Works</a>
+            <a href="/app" class="btn btn-primary" style="padding: 8px 20px; font-size: 13px;">
+                <i data-lucide="rocket"></i> Launch App
+            </a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-bg"></div>
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+
+        <div class="hero-content">
+            <div class="badge-testnet">
+                <i data-lucide="radio" style="width:14px;height:14px;"></i>
+                TESTNET LIVE
+            </div>
+            <h1 class="landing-title">Xeris NFT</h1>
+            <p class="landing-tagline">Create. Collect. Trade.</p>
+            <p class="landing-sub">
+                Describe your vision and let AI bring it to life as a unique NFT on the Xeris blockchain.
+                Mint, verify, and trade — all in one place.
+            </p>
+            <div class="landing-cta">
+                <a href="/app" class="btn btn-primary">
+                    <i data-lucide="sparkles"></i> Launch App
+                </a>
+                <a href="https://xeris-explorer.vercel.app/" target="_blank" class="btn btn-secondary">
+                    <i data-lucide="compass"></i> Explorer
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works -->
+    <section class="section" id="how-it-works" style="background: var(--bg-secondary);">
+        <h2 class="section-title">How it Works</h2>
+        <p class="section-sub">Three simple steps to create and own AI-generated digital art</p>
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Describe Your Vision</h3>
+                <p>Type a prompt describing the image you want — a cyberpunk city, an abstract cosmos, anything you imagine.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>AI Generates Art</h3>
+                <p>Our AI engine creates a unique, one-of-a-kind image based on your prompt and stores it on IPFS.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Mint & Trade</h3>
+                <p>Your NFT is minted on the Xeris blockchain with a verifiable proof. List it for sale or collect.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+        <h2 class="section-title">Platform Features</h2>
+        <p class="section-sub">Everything you need to create, own, and trade AI-generated digital art</p>
         <div class="features">
             <div class="feature">
+                <div class="feature-icon blue">
+                    <i data-lucide="wand-2"></i>
+                </div>
                 <h3>AI Art Generation</h3>
-                <p>Describe your vision and get a unique NFT image generated by AI.</p>
+                <p>Describe your vision and get a unique NFT image generated by AI — no art skills required.</p>
             </div>
             <div class="feature">
+                <div class="feature-icon purple">
+                    <i data-lucide="shield-check"></i>
+                </div>
                 <h3>On-Chain Proofs</h3>
-                <p>Every NFT gets a verifiable proof recorded on the Xeris blockchain.</p>
+                <p>Every NFT gets a verifiable cryptographic proof recorded on the Xeris blockchain.</p>
             </div>
             <div class="feature">
+                <div class="feature-icon green">
+                    <i data-lucide="hard-drive"></i>
+                </div>
                 <h3>IPFS Storage</h3>
-                <p>Images stored permanently on IPFS — decentralized and tamper-proof.</p>
+                <p>Images stored permanently on IPFS via Pinata — decentralized and tamper-proof.</p>
             </div>
             <div class="feature">
+                <div class="feature-icon orange">
+                    <i data-lucide="store"></i>
+                </div>
                 <h3>Marketplace</h3>
-                <p>List your NFTs for sale and trade with other collectors using XRS.</p>
+                <p>List your NFTs for sale and trade with other collectors using XRS tokens.</p>
             </div>
         </div>
-    </div>
+    </section>
+
+    <!-- Showcase Preview -->
+    <section class="showcase">
+        <h2 class="section-title">AI-Generated Art Showcase</h2>
+        <p class="section-sub">A glimpse of what's possible with AI art generation</p>
+        <div class="showcase-grid">
+            <div class="showcase-card">
+                <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&q=80" alt="Abstract digital art" loading="lazy"/>
+                <div class="overlay"><span>Abstract Cosmos</span></div>
+            </div>
+            <div class="showcase-card">
+                <img src="https://images.unsplash.com/photo-1634017839464-5c339afa560d?w=400&q=80" alt="Digital art NFT" loading="lazy"/>
+                <div class="overlay"><span>Neon Dreams</span></div>
+            </div>
+            <div class="showcase-card">
+                <img src="https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=400&q=80" alt="Gradient art" loading="lazy"/>
+                <div class="overlay"><span>Fluid Spectrum</span></div>
+            </div>
+            <div class="showcase-card">
+                <img src="https://images.unsplash.com/photo-1633218388467-539651dcf81a?w=400&q=80" alt="Abstract waves" loading="lazy"/>
+                <div class="overlay"><span>Digital Waves</span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <div class="logo-icon">X</div>
+                Xeris NFT
+            </div>
+            <div class="footer-links">
+                <a href="https://xeris-explorer.vercel.app/" target="_blank">
+                    <i data-lucide="compass"></i> Explorer
+                </a>
+                <a href="https://github.com" target="_blank">
+                    <i data-lucide="github"></i> GitHub
+                </a>
+                <a href="/app">
+                    <i data-lucide="layout-dashboard"></i> App
+                </a>
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 Xeris NFT. Built on the Xeris Blockchain. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script>lucide.createIcons();</script>
 </body>
 </html>

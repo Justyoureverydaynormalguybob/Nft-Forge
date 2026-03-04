@@ -6,28 +6,44 @@
     <title>Xeris NFT - App</title>
     <link rel="stylesheet" href="/css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <style>body { font-family: 'Inter', sans-serif; }</style>
 </head>
 <body>
     <!-- Header -->
     <div class="header">
-        <div class="logo">
+        <a href="/" class="logo" style="text-decoration:none;">
             <div class="logo-icon">X</div>
             <span>Xeris NFT</span>
-        </div>
+        </a>
         <div class="header-right">
-            <button id="connect-btn" onclick="App.connectWallet()">Connect Wallet</button>
+            <button id="connect-btn" onclick="App.connectWallet()">
+                <i data-lucide="wallet" style="width:15px;height:15px;"></i>
+                Connect Wallet
+            </button>
             <div id="user-info" class="hidden"></div>
         </div>
     </div>
 
     <!-- Navigation -->
     <div class="nav">
-        <button class="nav-tab active" data-view="gallery">Gallery</button>
-        <button class="nav-tab" data-view="mint">Mint</button>
-        <button class="nav-tab" data-view="marketplace">Marketplace</button>
-        <button class="nav-tab auth-required hidden" data-view="my-nfts">My NFTs</button>
+        <button class="nav-tab active" data-view="gallery">
+            <i data-lucide="layout-grid" style="width:15px;height:15px;"></i>
+            Gallery
+        </button>
+        <button class="nav-tab" data-view="mint">
+            <i data-lucide="sparkles" style="width:15px;height:15px;"></i>
+            Mint
+        </button>
+        <button class="nav-tab" data-view="marketplace">
+            <i data-lucide="store" style="width:15px;height:15px;"></i>
+            Marketplace
+        </button>
+        <button class="nav-tab auth-required hidden" data-view="my-nfts">
+            <i data-lucide="image" style="width:15px;height:15px;"></i>
+            My NFTs
+        </button>
     </div>
 
     <!-- Status bar -->
@@ -36,6 +52,10 @@
 
     <!-- Gallery View -->
     <div id="view-gallery" class="view active">
+        <div class="view-header">
+            <h2><i data-lucide="layout-grid" class="view-icon"></i> Gallery</h2>
+            <p class="view-desc">Browse all minted NFTs on the Xeris network</p>
+        </div>
         <div id="gallery-grid" class="nft-grid"></div>
     </div>
 
@@ -43,16 +63,20 @@
     <div id="view-mint" class="view">
         <div class="mint-container">
             <div class="mint-form">
-                <h2>Create AI NFT</h2>
+                <h2><i data-lucide="wand-2" class="view-icon"></i> Create AI NFT</h2>
+                <p class="mint-sub">Describe your vision and our AI will generate a unique piece of art</p>
                 <div class="form-group">
-                    <label>Name (optional)</label>
+                    <label><i data-lucide="type" class="label-icon"></i> Name (optional)</label>
                     <input type="text" id="mint-name" placeholder="My Awesome NFT" maxlength="100"/>
                 </div>
                 <div class="form-group">
-                    <label>Describe your vision</label>
+                    <label><i data-lucide="message-square" class="label-icon"></i> Describe your vision</label>
                     <textarea id="mint-prompt" placeholder="A cyberpunk city at sunset with neon lights reflecting on rain-soaked streets..." maxlength="500" rows="3"></textarea>
                 </div>
-                <button id="mint-btn" class="btn btn-primary" onclick="App.mintNFT()" style="width:100%">Mint NFT</button>
+                <button id="mint-btn" class="btn btn-primary" onclick="App.mintNFT()" style="width:100%">
+                    <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
+                    Mint NFT
+                </button>
                 <div id="mint-preview"></div>
             </div>
         </div>
@@ -60,18 +84,28 @@
 
     <!-- Marketplace View -->
     <div id="view-marketplace" class="view">
+        <div class="view-header">
+            <h2><i data-lucide="store" class="view-icon"></i> Marketplace</h2>
+            <p class="view-desc">Browse and buy NFTs listed for sale</p>
+        </div>
         <div id="marketplace-grid" class="nft-grid"></div>
     </div>
 
     <!-- My NFTs View -->
     <div id="view-my-nfts" class="view">
+        <div class="view-header">
+            <h2><i data-lucide="image" class="view-icon"></i> My NFTs</h2>
+            <p class="view-desc">Your personal NFT collection</p>
+        </div>
         <div id="my-nfts-grid" class="nft-grid"></div>
     </div>
 
     <!-- NFT Detail Modal -->
     <div id="nft-modal" class="modal" onclick="if(event.target===this)App.closeModal()">
         <div class="modal-inner">
-            <button class="modal-close" onclick="App.closeModal()">X</button>
+            <button class="modal-close" onclick="App.closeModal()">
+                <i data-lucide="x" style="width:16px;height:16px;"></i>
+            </button>
             <div id="nft-modal-content"></div>
         </div>
     </div>
@@ -81,5 +115,6 @@
 
     <script src="/js/xeris-tx.js"></script>
     <script src="/js/app.js"></script>
+    <script>lucide.createIcons();</script>
 </body>
 </html>

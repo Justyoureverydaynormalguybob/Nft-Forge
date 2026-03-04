@@ -38,7 +38,8 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 12px 20px;
-    background: var(--bg-secondary);
+    background: rgba(17, 24, 39, 0.85);
+    backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
@@ -88,7 +89,7 @@ body {
 
 .nav {
     display: flex;
-    gap: 2px;
+    gap: 4px;
     padding: 8px 20px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
@@ -105,6 +106,9 @@ body {
     white-space: nowrap;
     border: none;
     background: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .nav-tab:hover { color: var(--text-primary); background: var(--bg-card); }
@@ -132,26 +136,50 @@ body {
 .view { display: none; padding: 20px; }
 .view.active { display: block; }
 
+.view-header {
+    margin-bottom: 24px;
+}
+
+.view-header h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.view-icon {
+    width: 22px;
+    height: 22px;
+    color: var(--accent);
+}
+
+.view-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
 /* ─── NFT GRID ────────────────────────────────────────────────── */
 
 .nft-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
 }
 
 .nft-card {
     background: var(--bg-card);
-    border-radius: 12px;
+    border-radius: 14px;
     overflow: hidden;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
     border: 1px solid var(--border);
 }
 
 .nft-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(79, 143, 255, 0.15);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(79, 143, 255, 0.15);
     border-color: var(--accent);
 }
 
@@ -165,10 +193,15 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.nft-card:hover .nft-image img {
+    transform: scale(1.05);
 }
 
 .nft-info {
-    padding: 10px 12px;
+    padding: 12px 14px;
 }
 
 .nft-name {
@@ -221,6 +254,7 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    text-decoration: none;
 }
 
 .btn-primary {
@@ -262,6 +296,9 @@ body {
     font-weight: 600;
     cursor: pointer;
     font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* ─── MINT SECTION ────────────────────────────────────────────── */
@@ -273,14 +310,23 @@ body {
 
 .mint-form {
     background: var(--bg-card);
-    padding: 24px;
+    padding: 28px;
     border-radius: 16px;
     border: 1px solid var(--border);
 }
 
 .mint-form h2 {
-    margin-bottom: 16px;
-    font-size: 20px;
+    margin-bottom: 6px;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mint-sub {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
 }
 
 .form-group {
@@ -288,10 +334,18 @@ body {
 }
 
 .form-group label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
     color: var(--text-secondary);
     margin-bottom: 6px;
+}
+
+.label-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
 }
 
 .form-group input,
@@ -304,12 +358,13 @@ body {
     color: var(--text-primary);
     font-size: 14px;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79, 143, 255, 0.1);
 }
 
 .form-group textarea {
@@ -374,6 +429,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--bg-card-hover);
 }
 
 .detail-image {
@@ -481,13 +541,17 @@ body {
 }
 
 .toast {
-    padding: 10px 20px;
-    border-radius: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
     font-size: 14px;
     transform: translateX(100%);
     opacity: 0;
     transition: all 0.3s ease;
-    max-width: 320px;
+    max-width: 340px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .toast.show { transform: translateX(0); opacity: 1; }
@@ -498,11 +562,18 @@ body {
 /* ─── UTILITY ─────────────────────────────────────────────────── */
 
 .hidden { display: none !important; }
-.loading { text-align: center; padding: 40px; color: var(--text-muted); }
+.loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 16px; }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 16px; }
 .error { text-align: center; padding: 20px; color: var(--error); }
 
 a { color: var(--accent); }
+
+/* ─── SCROLLBAR ───────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ─── RESPONSIVE ──────────────────────────────────────────────── */
 
@@ -512,4 +583,5 @@ a { color: var(--accent); }
     .nav { padding: 6px 12px; }
     .view { padding: 12px; }
     .modal-inner { margin-top: 20px; }
+    .view-header h2 { font-size: 18px; }
 }
