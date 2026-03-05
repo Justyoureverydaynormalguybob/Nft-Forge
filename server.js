@@ -512,6 +512,10 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
         const { txSignature } = req.body;
         const buyerAddress = req.user.address;
 
+        if (!txSignature) {
+            return res.status(400).json({ error: 'Payment transaction signature required' });
+        }
+
         const listing = db.listings.getById(req.params.id);
         if (!listing) return res.status(404).json({ error: 'Listing not found' });
         if (listing.status !== 'active') return res.status(400).json({ error: 'Listing no longer active' });
@@ -519,11 +523,20 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Cannot buy your own NFT' });
         }
 
-        // Payment tx was already submitted by the wallet — we just record the signature
-        const paymentTxSignature = txSignature || '';
-        if (paymentTxSignature) {
-            console.log(`[TRADE] Payment tx signature: ${paymentTxSignature}`);
+        console.log(`[TRADE] Payment tx signature: ${txSignature}`);
+
+        // Verify escrow received the payment by checking escrow balance
+        const escrowBalanceBefore = await chain.getBalance(serverKeypair.address);
+        const escrowBalance = escrowBalanceBefore.balance || 0;
+
+        if (escrowBalance < listing.priceLamports) {
+            console.log(`[TRADE] Escrow balance insufficient: ${escrowBalance} < ${listing.priceLamports}`);
+            return res.status(400).json({
+                error: 'Payment not received. Escrow balance too low. The transaction may have failed due to insufficient funds.'
+            });
         }
+
+        console.log(`[TRADE] Escrow balance verified: ${escrowBalance} lamports (need ${listing.priceLamports})`);
 
         // Transfer NFT ownership in DB
         const nft = db.transferNFT(listing.nftId, buyerAddress);

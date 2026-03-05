@@ -622,18 +622,28 @@ const App = (() => {
             return;
         }
 
-        if (!confirm('Buy this NFT for ' + (priceLamports / LAMPORTS_PER_XRS) + ' XRS?')) return;
+        const priceXRS = priceLamports / LAMPORTS_PER_XRS;
+        if (!confirm('Buy this NFT for ' + priceXRS + ' XRS?')) return;
 
-        setStatus('Building payment transaction...');
+        setStatus('Checking balance...');
 
         try {
+            // Check buyer has enough balance before attempting payment
+            const balanceData = await api('GET', '/api/chain/balance/' + state.address);
+            const balanceLamports = balanceData.balance || 0;
+            if (balanceLamports < priceLamports) {
+                const have = (balanceLamports / LAMPORTS_PER_XRS).toFixed(2);
+                showToast(`Insufficient balance. You have ${have} XRS but need ${priceXRS} XRS.`, 'error');
+                return;
+            }
+
             const stats = await api('GET', '/api/stats');
             const escrowAddress = stats.escrowAddress;
 
             setStatus('Please approve transaction in wallet...');
-            const result = await dapp.transferXrs(escrowAddress, priceLamports / LAMPORTS_PER_XRS);
+            const result = await dapp.transferXrs(escrowAddress, priceXRS);
 
-            setStatus('Confirming purchase...');
+            setStatus('Verifying payment...');
             const buyResult = await api('POST', '/api/listings/' + listingId + '/buy', {
                 txSignature: result.signature
             });
