@@ -43,6 +43,18 @@ const App = (() => {
         try {
             setStatus('Detecting wallet...');
 
+            // Quick check: is any wallet provider available?
+            const provider = XerisDApp.detectProvider();
+            if (!provider) {
+                setStatus('Waiting for wallet extension...');
+                const waited = await XerisDApp.waitForProvider(2000);
+                if (!waited) {
+                    setStatus('');
+                    showWalletNotFound();
+                    return;
+                }
+            }
+
             const address = await dapp.connect({ onlyIfTrusted: false });
 
             setStatus('Authenticating...');
@@ -93,9 +105,40 @@ const App = (() => {
 
             loadBalance();
         } catch (e) {
-            showToast('Connection failed: ' + e.message, 'error');
             setStatus('');
+            if (e.message && e.message.includes('wallet not found')) {
+                showWalletNotFound();
+            } else {
+                showToast('Connection failed: ' + e.message, 'error');
+            }
         }
+    }
+
+    function showWalletNotFound() {
+        const modal = document.getElementById('nft-modal');
+        const content = document.getElementById('nft-modal-content');
+        modal.classList.add('active');
+        content.innerHTML = `
+            <div style="padding:40px 28px;text-align:center;">
+                <div style="width:56px;height:56px;border-radius:50%;background:rgba(79,143,255,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                    <i data-lucide="wallet" style="width:28px;height:28px;color:var(--accent);"></i>
+                </div>
+                <h2 style="margin-bottom:8px;">No Wallet Detected</h2>
+                <p style="color:var(--text-secondary);font-size:14px;margin-bottom:24px;">
+                    To connect an existing wallet, install the <strong>Xeris Command Center</strong> browser extension.
+                </p>
+                <div style="display:flex;flex-direction:column;gap:10px;max-width:320px;margin:0 auto;">
+                    <button class="btn btn-primary" style="justify-content:center;" onclick="App.closeModal();App.showView('mint');">
+                        <i data-lucide="zap" style="width:16px;height:16px;"></i>
+                        Quick Mint (No Wallet Needed)
+                    </button>
+                    <a href="https://github.com/nickvprince/Xeris-Command-Center/releases" target="_blank" class="btn btn-secondary" style="justify-content:center;text-decoration:none;">
+                        <i data-lucide="download" style="width:16px;height:16px;"></i>
+                        Get Xeris Command Center
+                    </a>
+                </div>
+            </div>`;
+        renderIcons();
     }
 
     async function disconnectWallet() {
