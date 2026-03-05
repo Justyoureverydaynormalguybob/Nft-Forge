@@ -551,7 +551,7 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
             buyerAddress,
             sellerAddress: listing.sellerAddress,
             priceLamports: listing.priceLamports,
-            paymentTxSignature
+            paymentTxSignature: txSignature
         });
 
         // Send payment to seller (minus platform fee) from escrow
