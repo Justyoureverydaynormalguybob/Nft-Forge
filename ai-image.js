@@ -1,5 +1,5 @@
 // ============================================
-// NFT-XERIS — AI IMAGE GENERATOR
+// NFT-FORGE — AI IMAGE GENERATOR
 // ============================================
 // Primary: Replicate API with FLUX.1 [schnell]
 // Fallback: Mock SVG generator (no API key)

@@ -1,5 +1,5 @@
 // ============================================
-// NFT-XERIS — FRONTEND APP LOGIC
+// NFT-FORGE — FRONTEND APP LOGIC
 // Uses XerisDApp from xeris-sdk for wallet connect
 // ============================================
 

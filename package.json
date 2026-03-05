@@ -1,7 +1,7 @@
 {
-  "name": "nft-xeris",
+  "name": "nft-forge",
   "version": "1.0.0",
-  "description": "AI-generated NFT minting platform on Xeris chain",
+  "description": "AI-generated NFT platform powered by Xeris blockchain",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -14,6 +14,7 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.0",
     "replicate": "^1.4.0"
   },
   "engines": {

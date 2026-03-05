@@ -1,7 +1,7 @@
 // ============================================
-// NFT-XERIS — EXPRESS SERVER
+// NFT-FORGE — EXPRESS SERVER
 // ============================================
-// AI-generated NFT minting platform on Xeris chain.
+// AI-generated NFT platform powered by Xeris blockchain.
 // ============================================
 
 require('dotenv').config();
@@ -110,22 +110,19 @@ app.post('/api/auth/challenge', (req, res) => {
 });
 
 // Connect wallet (verify signature or simplified auth for dev)
-app.post('/api/auth/connect', (req, res) => {
+app.post('/api/auth/connect', async (req, res) => {
     const { address, signature } = req.body;
     if (!address || typeof address !== 'string' || address.length < 20) {
         return res.status(400).json({ error: 'Invalid wallet address' });
     }
 
-    // In production: verify Ed25519 signature against challenge
-    // For now: accept any valid-looking address (wallet browser handles auth)
-    // The wallet browser itself authenticates the user via device keys
     const pending = pendingChallenges.get(address);
     if (pending) {
         pendingChallenges.delete(address);
     }
 
     // Ensure user record exists
-    const user = db.getOrCreateUser(address);
+    const user = await db.getOrCreateUser(address);
 
     const token = jwt.sign({ address, userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
     res.json({
@@ -135,10 +132,10 @@ app.post('/api/auth/connect', (req, res) => {
 });
 
 // Get current user
-app.get('/api/auth/me', requireAuth, (req, res) => {
-    const user = db.users.find({ address: req.user.address })[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ user });
+app.get('/api/auth/me', requireAuth, async (req, res) => {
+    const found = await db.users.find({ address: req.user.address });
+    if (!found[0]) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: found[0] });
 });
 
 // ─── GENERATE ROUTE (preview only, no mint) ─────────────────────────
@@ -221,20 +218,21 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
         // Verify collection exists (if specified)
         let collection = null;
         if (collectionId) {
-            collection = db.collections.getById(collectionId);
+            collection = await db.collections.getById(collectionId);
             if (!collection) return res.status(404).json({ error: 'Collection not found' });
             if (collection.maxSupply > 0 && collection.mintCount >= collection.maxSupply) {
                 return res.status(400).json({ error: 'Collection max supply reached' });
             }
         }
 
-        const nftNumber = db.nfts.data.length + 1;
+        const nftCount = await db.nfts.count();
+        const nftNumber = nftCount + 1;
         const nftName = name || `AI Art #${nftNumber}`;
 
         // Build metadata
         const metadata = {
             name: nftName,
-            description: `AI-generated NFT on Xeris`,
+            description: `AI-generated NFT on NFT Forge`,
             image: gen.imageUrl,
             attributes: {
                 creator: creatorAddress,
@@ -248,7 +246,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
         const metadataUpload = await ipfs.uploadMetadata(metadata);
 
         // Save NFT to database
-        const nft = db.createNFT({
+        const nft = await db.createNFT({
             collectionId: collectionId || null,
             tokenNumber: nftNumber,
             ownerAddress: creatorAddress,
@@ -262,7 +260,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
         });
 
         if (collectionId) {
-            db.incrementMintCount(collectionId);
+            await db.incrementMintCount(collectionId);
         }
 
         // Remove used generation
@@ -308,14 +306,15 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
         }
 
         const creatorAddress = walletAddress;
-        db.getOrCreateUser(creatorAddress);
+        await db.getOrCreateUser(creatorAddress);
 
-        const nftNumber = db.nfts.data.length + 1;
+        const guestNftCount = await db.nfts.count();
+        const nftNumber = guestNftCount + 1;
         const nftName = name || `AI Art #${nftNumber}`;
 
         const metadata = {
             name: nftName,
-            description: `AI-generated NFT on Xeris`,
+            description: `AI-generated NFT on NFT Forge`,
             image: gen.imageUrl,
             attributes: {
                 creator: creatorAddress,
@@ -328,7 +327,7 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
 
         const metadataUpload = await ipfs.uploadMetadata(metadata);
 
-        const nft = db.createNFT({
+        const nft = await db.createNFT({
             collectionId: null,
             tokenNumber: nftNumber,
             ownerAddress: creatorAddress,
@@ -361,14 +360,14 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
 
 // ─── NFT QUERY ROUTES ────────────────────────────────────────────────
 
-app.get('/api/nfts', (req, res) => {
+app.get('/api/nfts', async (req, res) => {
     const { page = 1, limit = 20, collection, creator, owner } = req.query;
     const filter = {};
     if (collection) filter.collectionId = collection;
     if (creator) filter.creatorAddress = creator;
     if (owner) filter.ownerAddress = owner;
 
-    const result = db.nfts.list({
+    const result = await db.nfts.list({
         page: parseInt(page),
         limit: Math.min(parseInt(limit) || 20, 100),
         filter,
@@ -377,22 +376,21 @@ app.get('/api/nfts', (req, res) => {
     res.json(result);
 });
 
-app.get('/api/nfts/:id', (req, res) => {
-    const nft = db.nfts.getById(req.params.id);
+app.get('/api/nfts/:id', async (req, res) => {
+    const nft = await db.nfts.getById(req.params.id);
     if (!nft) return res.status(404).json({ error: 'NFT not found' });
 
-    // Include collection info
     let collection = null;
     if (nft.collectionId) {
-        collection = db.collections.getById(nft.collectionId);
+        collection = await db.collections.getById(nft.collectionId);
     }
 
     res.json({ nft, collection });
 });
 
-app.get('/api/nfts/owner/:address', (req, res) => {
+app.get('/api/nfts/owner/:address', async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
-    const result = db.nfts.list({
+    const result = await db.nfts.list({
         page: parseInt(page),
         limit: Math.min(parseInt(limit) || 20, 100),
         filter: { ownerAddress: req.params.address },
@@ -403,9 +401,9 @@ app.get('/api/nfts/owner/:address', (req, res) => {
 
 // ─── COLLECTION ROUTES ───────────────────────────────────────────────
 
-app.get('/api/collections', (req, res) => {
+app.get('/api/collections', async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
-    const result = db.collections.list({
+    const result = await db.collections.list({
         page: parseInt(page),
         limit: Math.min(parseInt(limit) || 20, 100),
         sort: { field: 'createdAt', order: 'desc' }
@@ -413,11 +411,11 @@ app.get('/api/collections', (req, res) => {
     res.json(result);
 });
 
-app.get('/api/collections/:id', (req, res) => {
-    const collection = db.collections.getById(req.params.id);
+app.get('/api/collections/:id', async (req, res) => {
+    const collection = await db.collections.getById(req.params.id);
     if (!collection) return res.status(404).json({ error: 'Collection not found' });
 
-    const nftsResult = db.nfts.list({
+    const nftsResult = await db.nfts.list({
         filter: { collectionId: req.params.id },
         sort: { field: 'mintedAt', order: 'desc' },
         limit: 100
@@ -426,13 +424,13 @@ app.get('/api/collections/:id', (req, res) => {
     res.json({ collection, nfts: nftsResult });
 });
 
-app.post('/api/collections', requireAuth, (req, res) => {
+app.post('/api/collections', requireAuth, async (req, res) => {
     const { name, symbol, description, maxSupply } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
         return res.status(400).json({ error: 'Collection name must be at least 2 characters' });
     }
 
-    const collection = db.createCollection({
+    const collection = await db.createCollection({
         name: name.trim(),
         symbol: symbol ? symbol.trim().toUpperCase() : undefined,
         creatorAddress: req.user.address,
@@ -445,11 +443,11 @@ app.post('/api/collections', requireAuth, (req, res) => {
 
 // ─── MARKETPLACE ROUTES ──────────────────────────────────────────────
 
-app.get('/api/listings', (req, res) => {
+app.get('/api/listings', async (req, res) => {
     const { page = 1, limit = 20, sort = 'date' } = req.query;
     const sortField = sort === 'price' ? 'priceLamports' : 'createdAt';
 
-    const result = db.listings.list({
+    const result = await db.listings.list({
         page: parseInt(page),
         limit: Math.min(parseInt(limit) || 20, 100),
         filter: { status: 'active' },
@@ -457,33 +455,34 @@ app.get('/api/listings', (req, res) => {
     });
 
     // Enrich with NFT data
-    result.items = result.items.map(listing => {
-        const nft = db.nfts.getById(listing.nftId);
-        return { ...listing, nft: nft || null };
-    });
+    const enriched = [];
+    for (const listing of result.items) {
+        const nft = await db.nfts.getById(listing.nftId);
+        enriched.push({ ...listing, nft: nft || null });
+    }
+    result.items = enriched;
 
     res.json(result);
 });
 
-app.post('/api/listings', requireAuth, (req, res) => {
+app.post('/api/listings', requireAuth, async (req, res) => {
     const { nftId, priceXRS } = req.body;
 
     if (!nftId) return res.status(400).json({ error: 'NFT ID required' });
     if (!priceXRS || priceXRS <= 0) return res.status(400).json({ error: 'Price must be positive' });
 
-    const nft = db.nfts.getById(nftId);
+    const nft = await db.nfts.getById(nftId);
     if (!nft) return res.status(404).json({ error: 'NFT not found' });
     if (nft.ownerAddress !== req.user.address) {
         return res.status(403).json({ error: 'You do not own this NFT' });
     }
 
-    // Check if already listed
-    const existing = db.listings.find({ nftId, status: 'active' });
+    const existing = await db.listings.find({ nftId, status: 'active' });
     if (existing.length > 0) {
         return res.status(400).json({ error: 'NFT is already listed' });
     }
 
-    const listing = db.createListing({
+    const listing = await db.createListing({
         nftId,
         sellerAddress: req.user.address,
         priceXRS: parseFloat(priceXRS)
@@ -492,8 +491,8 @@ app.post('/api/listings', requireAuth, (req, res) => {
     res.json({ success: true, listing });
 });
 
-app.delete('/api/listings/:id', requireAuth, (req, res) => {
-    const listing = db.listings.getById(req.params.id);
+app.delete('/api/listings/:id', requireAuth, async (req, res) => {
+    const listing = await db.listings.getById(req.params.id);
     if (!listing) return res.status(404).json({ error: 'Listing not found' });
     if (listing.sellerAddress !== req.user.address) {
         return res.status(403).json({ error: 'Not your listing' });
@@ -502,7 +501,7 @@ app.delete('/api/listings/:id', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Listing is not active' });
     }
 
-    db.cancelListing(req.params.id);
+    await db.cancelListing(req.params.id);
     res.json({ success: true });
 });
 
@@ -516,7 +515,7 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Payment transaction signature required' });
         }
 
-        const listing = db.listings.getById(req.params.id);
+        const listing = await db.listings.getById(req.params.id);
         if (!listing) return res.status(404).json({ error: 'Listing not found' });
         if (listing.status !== 'active') return res.status(400).json({ error: 'Listing no longer active' });
         if (listing.sellerAddress === buyerAddress) {
@@ -539,13 +538,13 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
         console.log(`[TRADE] Escrow balance verified: ${escrowBalance} lamports (need ${listing.priceLamports})`);
 
         // Transfer NFT ownership in DB
-        const nft = db.transferNFT(listing.nftId, buyerAddress);
+        const nft = await db.transferNFT(listing.nftId, buyerAddress);
 
         // Mark listing as sold
-        db.completeListing(listing.id);
+        await db.completeListing(listing.id);
 
         // Record trade
-        const trade = db.recordTrade({
+        const trade = await db.recordTrade({
             listingId: listing.id,
             nftId: listing.nftId,
             buyerAddress,
@@ -657,13 +656,20 @@ app.get('/api/chain/info', async (req, res) => {
 
 // ─── PLATFORM INFO ───────────────────────────────────────────────────
 
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', async (req, res) => {
+    const [totalNFTs, totalCollections, totalUsers, totalListings, totalTrades] = await Promise.all([
+        db.nfts.count(),
+        db.collections.count(),
+        db.users.count(),
+        db.listings.count({ status: 'active' }),
+        db.trades.count()
+    ]);
     res.json({
-        totalNFTs: db.nfts.data.length,
-        totalCollections: db.collections.data.length,
-        totalUsers: db.users.data.length,
-        totalListings: db.listings.find({ status: 'active' }).length,
-        totalTrades: db.trades.data.length,
+        totalNFTs,
+        totalCollections,
+        totalUsers,
+        totalListings,
+        totalTrades,
         escrowAddress: serverKeypair.address,
         ipfsConfigured: ipfs.isConfigured(),
         aiConfigured: aiImage.isConfigured(),
@@ -679,13 +685,23 @@ app.get('/app', (req, res) => {
 
 // ─── START SERVER ────────────────────────────────────────────────────
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n========================================`);
-    console.log(`  NFT-XERIS Platform`);
-    console.log(`  http://localhost:${PORT}`);
-    console.log(`  Escrow: ${serverKeypair.address}`);
-    console.log(`  AI:      ${aiImage.isConfigured() ? 'FLUX.1 schnell (Replicate)' : 'Mock SVG (set REPLICATE_API_TOKEN)'}`);
-    console.log(`  IPFS:    ${ipfs.isConfigured() ? 'Pinata' : 'Local fallback'}`);
-    console.log(`  Network: ${chain.networkName}`);
-    console.log(`========================================\n`);
+async function start() {
+    await db.initDB();
+
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`\n========================================`);
+        console.log(`  NFT Forge`);
+        console.log(`  http://localhost:${PORT}`);
+        console.log(`  Escrow:  ${serverKeypair.address}`);
+        console.log(`  DB:      ${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON files'}`);
+        console.log(`  AI:      ${aiImage.isConfigured() ? 'Replicate' : 'Mock SVG'}`);
+        console.log(`  IPFS:    ${ipfs.isConfigured() ? 'Pinata' : 'Local fallback'}`);
+        console.log(`  Network: ${chain.networkName}`);
+        console.log(`========================================\n`);
+    });
+}
+
+start().catch(e => {
+    console.error('[FATAL] Startup failed:', e.message);
+    process.exit(1);
 });

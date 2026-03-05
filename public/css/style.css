@@ -1,5 +1,5 @@
 /* ============================================
-   NFT-XERIS — DESIGN SYSTEM
+   NFT-FORGE — DESIGN SYSTEM
    Charcoal & Gold premium theme
    Mobile-first, responsive to all screens
    ============================================ */
@@ -79,6 +79,13 @@ body {
     font-size: 15px;
     font-weight: 800;
     -webkit-text-fill-color: #111;
+}
+
+.logo-img {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
 }
 
 .header-right {

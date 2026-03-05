@@ -1,5 +1,5 @@
 // ============================================
-// NFT-XERIS — IPFS UPLOAD MODULE
+// NFT-FORGE — IPFS UPLOAD MODULE
 // ============================================
 // Primary: Pinata SDK for decentralized storage
 // Fallback: Local file storage with server URLs
