@@ -459,10 +459,10 @@ app.delete('/api/listings/:id', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
-// Buy NFT — buyer submits signed NativeTransfer tx to escrow
+// Buy NFT — buyer sends payment tx signature (wallet already submitted the tx)
 app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
     try {
-        const { txBase64 } = req.body;
+        const { txSignature } = req.body;
         const buyerAddress = req.user.address;
 
         const listing = db.listings.getById(req.params.id);
@@ -472,15 +472,10 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Cannot buy your own NFT' });
         }
 
-        // Submit buyer's payment transaction to chain
-        let paymentTxSignature = '';
-        if (txBase64) {
-            const submitResult = await chain.submitSignedTransaction({ txBase64 });
-            if (!submitResult.success) {
-                return res.status(400).json({ error: 'Payment transaction failed to submit' });
-            }
-            paymentTxSignature = submitResult.signature || '';
-            console.log(`[TRADE] Payment submitted: ${paymentTxSignature}`);
+        // Payment tx was already submitted by the wallet — we just record the signature
+        const paymentTxSignature = txSignature || '';
+        if (paymentTxSignature) {
+            console.log(`[TRADE] Payment tx signature: ${paymentTxSignature}`);
         }
 
         // Transfer NFT ownership in DB
