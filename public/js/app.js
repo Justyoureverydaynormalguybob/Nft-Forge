@@ -368,7 +368,18 @@ const App = (() => {
         const nameInput = document.getElementById('mint-name');
         const name = nameInput ? nameInput.value.trim() : '';
 
-        setStatus('Minting NFT...');
+        setStatus('Saving NFT...');
+
+        // Show loading state in preview immediately
+        const preview = document.getElementById('mint-preview');
+        if (preview) {
+            preview.innerHTML = `
+            <div class="mint-result" style="text-align:center;padding:40px 20px;">
+                <div class="spinner-accent" style="margin:0 auto 16px;"></div>
+                <p style="color:var(--text-secondary);font-size:14px;">Uploading to IPFS & saving your NFT...</p>
+                <p style="color:var(--text-muted);font-size:12px;margin-top:4px;">This may take a few seconds</p>
+            </div>`;
+        }
 
         try {
             const data = await api('POST', '/api/mint', {
@@ -377,15 +388,14 @@ const App = (() => {
             });
 
             _currentGeneration = null;
-            showToast('NFT minted successfully!', 'success');
+            showToast('NFT created successfully!', 'success');
 
-            const preview = document.getElementById('mint-preview');
             if (preview) {
                 preview.innerHTML = `
                 <div class="mint-result">
                     <img src="${escapeHtml(data.nft.imageGateway || data.nft.imageUrl)}" alt="${escapeHtml(data.nft.name)}"/>
                     <h3>${escapeHtml(data.nft.name)}</h3>
-                    <p><i data-lucide="check-circle" style="width:14px;height:14px;color:#10b981;"></i> Minted successfully!</p>
+                    <p><i data-lucide="check-circle" style="width:14px;height:14px;color:#10b981;"></i> Created successfully!</p>
                     <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">
                         <i data-lucide="eye" style="width:14px;height:14px;"></i> View Details
                     </button>
@@ -444,6 +454,17 @@ const App = (() => {
             mnemonic = wallet.mnemonic;
         }
 
+        // Show loading state in preview immediately
+        const preview = document.getElementById('mint-preview');
+        if (preview) {
+            preview.innerHTML = `
+            <div class="mint-result" style="text-align:center;padding:40px 20px;">
+                <div class="spinner-accent" style="margin:0 auto 16px;"></div>
+                <p style="color:var(--text-secondary);font-size:14px;">Uploading to IPFS & saving your NFT...</p>
+                <p style="color:var(--text-muted);font-size:12px;margin-top:4px;">This may take a few seconds</p>
+            </div>`;
+        }
+
         try {
             const data = await api('POST', '/api/mint/guest', {
                 generationId: _currentGeneration.generationId,
@@ -459,7 +480,6 @@ const App = (() => {
             _currentGeneration = null;
             showToast('NFT created successfully!', 'success');
 
-            const preview = document.getElementById('mint-preview');
             if (preview) {
                 preview.innerHTML = `
                 <div class="mint-result">
