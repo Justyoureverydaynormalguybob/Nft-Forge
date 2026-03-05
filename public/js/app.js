@@ -15,6 +15,11 @@ const App = (() => {
         currentView: 'gallery'
     };
 
+    // Re-render Lucide icons in dynamic content
+    function renderIcons() {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
     // ─── API HELPERS ─────────────────────────────────────────────────
 
     function apiHeaders() {
@@ -38,16 +43,12 @@ const App = (() => {
         try {
             setStatus('Detecting wallet...');
 
-            // Use XerisDApp.connect() — handles provider detection,
-            // wallet popup, and event subscriptions automatically
             const address = await dapp.connect({ onlyIfTrusted: false });
 
             setStatus('Authenticating...');
 
-            // Get challenge from server
             const { challenge } = await api('POST', '/api/auth/challenge', { address });
 
-            // Sign the challenge with the wallet for proper auth
             let signature = 'wallet-browser-auth';
             try {
                 const signResult = await dapp.signMessage(challenge);
@@ -58,11 +59,9 @@ const App = (() => {
                     signature = signResult;
                 }
             } catch (e) {
-                // Wallet may not support signMessage — fall back to simple auth
                 console.warn('signMessage not supported, using fallback auth');
             }
 
-            // Authenticate with server
             const { token, user } = await api('POST', '/api/auth/connect', {
                 address,
                 signature
@@ -76,7 +75,6 @@ const App = (() => {
             localStorage.setItem('nft_token', token);
             localStorage.setItem('nft_address', address);
 
-            // Listen for SDK disconnect/account change events
             dapp.on('disconnect', () => {
                 disconnectWallet();
             });
@@ -93,7 +91,6 @@ const App = (() => {
             showToast('Wallet connected!', 'success');
             setStatus('');
 
-            // Load balance in background
             loadBalance();
         } catch (e) {
             showToast('Connection failed: ' + e.message, 'error');
@@ -113,7 +110,6 @@ const App = (() => {
         showView('gallery');
     }
 
-    // Load and display wallet balance
     async function loadBalance() {
         if (!state.connected) return;
         try {
@@ -121,12 +117,9 @@ const App = (() => {
             const xrs = (lamports / LAMPORTS_PER_XRS).toFixed(4);
             const balEl = document.getElementById('wallet-balance');
             if (balEl) balEl.textContent = xrs + ' XRS';
-        } catch (e) {
-            // Balance display is optional
-        }
+        } catch (e) { /* optional */ }
     }
 
-    // Try to restore session from localStorage
     async function tryRestore() {
         const token = localStorage.getItem('nft_token');
         const address = localStorage.getItem('nft_address');
@@ -140,16 +133,12 @@ const App = (() => {
             state.connected = true;
             state.user = user;
 
-            // Try to reconnect wallet provider silently
             try {
                 await dapp.connect({ onlyIfTrusted: true });
-            } catch (e) {
-                // Provider not available — session-only mode
-            }
+            } catch (e) { /* session-only mode */ }
 
             updateUI();
         } catch (e) {
-            // Token expired
             localStorage.removeItem('nft_token');
             localStorage.removeItem('nft_address');
             state.token = null;
@@ -165,12 +154,10 @@ const App = (() => {
         const target = document.getElementById('view-' + view);
         if (target) target.classList.add('active');
 
-        // Update nav
         document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
         const navTab = document.querySelector(`.nav-tab[data-view="${view}"]`);
         if (navTab) navTab.classList.add('active');
 
-        // Load view data
         if (view === 'gallery') loadGallery();
         else if (view === 'marketplace') loadMarketplace();
         else if (view === 'my-nfts') loadMyNFTs();
@@ -180,17 +167,26 @@ const App = (() => {
 
     async function loadGallery() {
         const grid = document.getElementById('gallery-grid');
-        grid.innerHTML = '<div class="loading">Loading...</div>';
+        grid.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading gallery...</div>`;
 
         try {
             const data = await api('GET', '/api/nfts?limit=50');
             if (data.items.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No NFTs yet. Be the first to mint!</div>';
+                grid.innerHTML = `<div class="empty-state">
+                    <i data-lucide="image-plus" class="empty-state-icon"></i>
+                    <div>No NFTs yet. Be the first to mint!</div>
+                </div>`;
+                renderIcons();
                 return;
             }
             grid.innerHTML = data.items.map(nft => nftCard(nft)).join('');
+            renderIcons();
         } catch (e) {
-            grid.innerHTML = '<div class="error">Failed to load gallery</div>';
+            grid.innerHTML = `<div class="error">
+                <i data-lucide="alert-circle" style="width:24px;height:24px;"></i>
+                Failed to load gallery
+            </div>`;
+            renderIcons();
         }
     }
 
@@ -201,8 +197,13 @@ const App = (() => {
             <div class="nft-image"><img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(nft.name)}" loading="lazy"/></div>
             <div class="nft-info">
                 <div class="nft-name">${escapeHtml(nft.name)}</div>
-                <div class="nft-creator">${shortAddr(nft.creatorAddress)}</div>
-                ${nft.mintTxSignature ? '<span class="badge on-chain">On-Chain</span>' : '<span class="badge off-chain">Off-Chain</span>'}
+                <div class="nft-creator">
+                    <i data-lucide="user" style="width:11px;height:11px;"></i>
+                    ${shortAddr(nft.creatorAddress)}
+                </div>
+                ${nft.mintTxSignature
+                    ? '<span class="badge on-chain"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> On-Chain</span>'
+                    : '<span class="badge off-chain"><i data-lucide="shield-off" style="width:10px;height:10px;"></i> Off-Chain</span>'}
             </div>
         </div>`;
     }
@@ -213,12 +214,12 @@ const App = (() => {
         const modal = document.getElementById('nft-modal');
         const content = document.getElementById('nft-modal-content');
         modal.classList.add('active');
+        content.innerHTML = `<div class="loading" style="padding:80px 20px;"><div class="spinner-accent"></div>Loading...</div>`;
 
         try {
             const { nft, collection } = await api('GET', '/api/nfts/' + nftId);
             const isOwner = state.address && nft.ownerAddress === state.address;
 
-            // Check if listed
             const listings = await api('GET', '/api/listings?limit=100');
             const activeListing = listings.items.find(l => l.nftId === nftId);
 
@@ -226,26 +227,34 @@ const App = (() => {
             <div class="detail-image"><img src="${escapeHtml(nft.imageUrl)}" alt="${escapeHtml(nft.name)}"/></div>
             <div class="detail-info">
                 <h2>${escapeHtml(nft.name)}</h2>
-                <p class="prompt-text">"${escapeHtml(nft.promptText)}"</p>
+                <div class="prompt-text">
+                    <i data-lucide="quote" style="width:14px;height:14px;opacity:0.5;"></i>
+                    "${escapeHtml(nft.promptText)}"
+                </div>
                 <div class="detail-meta">
-                    <div><strong>Creator:</strong> ${shortAddr(nft.creatorAddress)}</div>
-                    <div><strong>Owner:</strong> ${shortAddr(nft.ownerAddress)}</div>
-                    ${collection ? `<div><strong>Collection:</strong> ${escapeHtml(collection.name)}</div>` : ''}
-                    <div><strong>Minted:</strong> ${new Date(nft.mintedAt).toLocaleDateString()}</div>
-                    ${nft.mintTxSignature ? `<div><strong>TX:</strong> <a href="https://xeris-explorer.vercel.app/" target="_blank">${nft.mintTxSignature.substring(0, 16)}...</a></div>` : ''}
-                    ${nft.certAddress ? `<div><strong>Cert:</strong> ${shortAddr(nft.certAddress)}</div>` : ''}
+                    <div><i data-lucide="paintbrush" style="width:13px;height:13px;"></i> <strong>Creator:</strong> ${shortAddr(nft.creatorAddress)}</div>
+                    <div><i data-lucide="user" style="width:13px;height:13px;"></i> <strong>Owner:</strong> ${shortAddr(nft.ownerAddress)}</div>
+                    ${collection ? `<div><i data-lucide="folder" style="width:13px;height:13px;"></i> <strong>Collection:</strong> ${escapeHtml(collection.name)}</div>` : ''}
+                    <div><i data-lucide="calendar" style="width:13px;height:13px;"></i> <strong>Minted:</strong> ${new Date(nft.mintedAt).toLocaleDateString()}</div>
+                    ${nft.mintTxSignature ? `<div><i data-lucide="hash" style="width:13px;height:13px;"></i> <strong>TX:</strong> <a href="https://xeris-explorer.vercel.app/" target="_blank">${nft.mintTxSignature.substring(0, 16)}...</a></div>` : ''}
+                    ${nft.certAddress ? `<div><i data-lucide="file-check" style="width:13px;height:13px;"></i> <strong>Cert:</strong> ${shortAddr(nft.certAddress)}</div>` : ''}
                 </div>
                 <div class="detail-actions">
-                    ${isOwner && !activeListing ? `<button class="btn btn-primary" onclick="App.showListForm('${nft.id}')">List for Sale</button>` : ''}
-                    ${activeListing && !isOwner && state.connected ? `<button class="btn btn-buy" onclick="App.buyNFT('${activeListing.id}', ${activeListing.priceLamports})">Buy for ${activeListing.priceXRS} XRS</button>` : ''}
-                    ${activeListing ? `<div class="listing-price">${activeListing.priceXRS} XRS</div>` : ''}
-                    <button class="btn btn-secondary" onclick="App.verifyNFT('${nft.id}')">Verify On-Chain</button>
+                    ${isOwner && !activeListing ? `<button class="btn btn-primary" onclick="App.showListForm('${nft.id}')"><i data-lucide="tag" style="width:14px;height:14px;"></i> List for Sale</button>` : ''}
+                    ${activeListing && !isOwner && state.connected ? `<button class="btn btn-buy" onclick="App.buyNFT('${activeListing.id}', ${activeListing.priceLamports})"><i data-lucide="shopping-cart" style="width:14px;height:14px;"></i> Buy for ${activeListing.priceXRS} XRS</button>` : ''}
+                    ${activeListing ? `<div class="listing-price"><i data-lucide="coins" style="width:16px;height:16px;"></i> ${activeListing.priceXRS} XRS</div>` : ''}
+                    <button class="btn btn-secondary" onclick="App.verifyNFT('${nft.id}')"><i data-lucide="shield-check" style="width:14px;height:14px;"></i> Verify On-Chain</button>
                 </div>
                 <div id="verify-result"></div>
                 <div id="list-form" class="hidden"></div>
             </div>`;
+            renderIcons();
         } catch (e) {
-            content.innerHTML = '<div class="error">Failed to load NFT details</div>';
+            content.innerHTML = `<div class="error" style="padding:60px 20px;">
+                <i data-lucide="alert-circle" style="width:24px;height:24px;"></i>
+                Failed to load NFT details
+            </div>`;
+            renderIcons();
         }
     }
 
@@ -273,7 +282,7 @@ const App = (() => {
 
         const mintBtn = document.getElementById('mint-btn');
         mintBtn.disabled = true;
-        mintBtn.innerHTML = '<span class="spinner"></span> Minting...';
+        mintBtn.innerHTML = '<span class="spinner"></span> Generating with AI...';
         setStatus('Generating AI image & minting on-chain...');
 
         try {
@@ -281,26 +290,31 @@ const App = (() => {
 
             showToast('NFT minted successfully!', 'success');
 
-            // Show preview
             const preview = document.getElementById('mint-preview');
             if (preview) {
                 preview.innerHTML = `
                 <div class="mint-result">
                     <img src="${escapeHtml(data.nft.imageGateway || data.nft.imageUrl)}" alt="${escapeHtml(data.nft.name)}"/>
                     <h3>${escapeHtml(data.nft.name)}</h3>
-                    <p>${data.nft.onChain ? 'On-chain proof recorded!' : 'Minted (off-chain)'}</p>
-                    <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">View Details</button>
+                    <p>${data.nft.onChain
+                        ? '<i data-lucide="shield-check" style="width:14px;height:14px;color:#10b981;"></i> On-chain proof recorded!'
+                        : '<i data-lucide="shield-off" style="width:14px;height:14px;color:#f59e0b;"></i> Minted (off-chain)'}</p>
+                    <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">
+                        <i data-lucide="eye" style="width:14px;height:14px;"></i> View Details
+                    </button>
                 </div>`;
+                renderIcons();
             }
 
             promptInput.value = '';
             if (nameInput) nameInput.value = '';
+            updateCharCount();
         } catch (e) {
             showToast('Mint failed: ' + e.message, 'error');
         } finally {
             mintBtn.disabled = false;
             mintBtn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px;"></i> Mint NFT';
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            renderIcons();
             setStatus('');
         }
     }
@@ -309,17 +323,26 @@ const App = (() => {
 
     async function loadMarketplace() {
         const grid = document.getElementById('marketplace-grid');
-        grid.innerHTML = '<div class="loading">Loading listings...</div>';
+        grid.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading listings...</div>`;
 
         try {
             const data = await api('GET', '/api/listings?limit=50');
             if (data.items.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No active listings. Mint an NFT and list it!</div>';
+                grid.innerHTML = `<div class="empty-state">
+                    <i data-lucide="store" class="empty-state-icon"></i>
+                    <div>No active listings. Mint an NFT and list it!</div>
+                </div>`;
+                renderIcons();
                 return;
             }
             grid.innerHTML = data.items.map(listing => listingCard(listing)).join('');
+            renderIcons();
         } catch (e) {
-            grid.innerHTML = '<div class="error">Failed to load marketplace</div>';
+            grid.innerHTML = `<div class="error">
+                <i data-lucide="alert-circle" style="width:24px;height:24px;"></i>
+                Failed to load marketplace
+            </div>`;
+            renderIcons();
         }
     }
 
@@ -331,8 +354,14 @@ const App = (() => {
             <div class="nft-image"><img src="${escapeHtml(nft.imageUrl)}" alt="${escapeHtml(nft.name)}" loading="lazy"/></div>
             <div class="nft-info">
                 <div class="nft-name">${escapeHtml(nft.name)}</div>
-                <div class="listing-price">${listing.priceXRS} XRS</div>
-                <div class="nft-creator">Seller: ${shortAddr(listing.sellerAddress)}</div>
+                <div class="listing-price">
+                    <i data-lucide="coins" style="width:14px;height:14px;"></i>
+                    ${listing.priceXRS} XRS
+                </div>
+                <div class="nft-creator">
+                    <i data-lucide="user" style="width:11px;height:11px;"></i>
+                    ${shortAddr(listing.sellerAddress)}
+                </div>
             </div>
         </div>`;
     }
@@ -341,23 +370,36 @@ const App = (() => {
 
     async function loadMyNFTs() {
         if (!state.connected) {
-            document.getElementById('my-nfts-grid').innerHTML =
-                '<div class="empty-state">Connect wallet to see your NFTs</div>';
+            const grid = document.getElementById('my-nfts-grid');
+            grid.innerHTML = `<div class="empty-state">
+                <i data-lucide="wallet" class="empty-state-icon"></i>
+                <div>Connect wallet to see your NFTs</div>
+            </div>`;
+            renderIcons();
             return;
         }
 
         const grid = document.getElementById('my-nfts-grid');
-        grid.innerHTML = '<div class="loading">Loading your NFTs...</div>';
+        grid.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading your NFTs...</div>`;
 
         try {
             const data = await api('GET', '/api/nfts/owner/' + state.address);
             if (data.items.length === 0) {
-                grid.innerHTML = '<div class="empty-state">You don\'t own any NFTs yet. Go mint one!</div>';
+                grid.innerHTML = `<div class="empty-state">
+                    <i data-lucide="image-plus" class="empty-state-icon"></i>
+                    <div>You don't own any NFTs yet. Go mint one!</div>
+                </div>`;
+                renderIcons();
                 return;
             }
             grid.innerHTML = data.items.map(nft => nftCard(nft)).join('');
+            renderIcons();
         } catch (e) {
-            grid.innerHTML = '<div class="error">Failed to load your NFTs</div>';
+            grid.innerHTML = `<div class="error">
+                <i data-lucide="alert-circle" style="width:24px;height:24px;"></i>
+                Failed to load your NFTs
+            </div>`;
+            renderIcons();
         }
     }
 
@@ -368,10 +410,13 @@ const App = (() => {
         form.classList.remove('hidden');
         form.innerHTML = `
         <div class="list-form-inner">
-            <h4>List for Sale</h4>
+            <h4><i data-lucide="tag" style="width:16px;height:16px;color:var(--accent);"></i> List for Sale</h4>
             <input type="number" id="list-price" placeholder="Price in XRS" min="0.001" step="0.001"/>
-            <button class="btn btn-primary" onclick="App.createListing('${nftId}')">Confirm Listing</button>
+            <button class="btn btn-primary" onclick="App.createListing('${nftId}')">
+                <i data-lucide="check" style="width:14px;height:14px;"></i> Confirm Listing
+            </button>
         </div>`;
+        renderIcons();
     }
 
     async function createListing(nftId) {
@@ -403,15 +448,12 @@ const App = (() => {
         setStatus('Building payment transaction...');
 
         try {
-            // Get escrow address from server
             const stats = await api('GET', '/api/stats');
             const escrowAddress = stats.escrowAddress;
 
-            // Use XerisDApp to transfer XRS to escrow
             setStatus('Please approve transaction in wallet...');
             const result = await dapp.transferXrs(escrowAddress, priceLamports / LAMPORTS_PER_XRS);
 
-            // Submit buy order with the tx signature
             setStatus('Confirming purchase...');
             const buyResult = await api('POST', '/api/listings/' + listingId + '/buy', {
                 txSignature: result.signature
@@ -432,19 +474,24 @@ const App = (() => {
 
     async function verifyNFT(nftId) {
         const el = document.getElementById('verify-result');
-        el.innerHTML = '<div class="loading">Verifying on-chain...</div>';
+        el.innerHTML = `<div class="loading" style="padding:16px;"><div class="spinner-accent"></div>Verifying on-chain...</div>`;
 
         try {
             const data = await api('GET', '/api/verify/' + nftId);
             el.innerHTML = `
             <div class="verify-box ${data.onChain ? 'verified' : 'unverified'}">
-                <strong>${data.onChain ? 'Verified On-Chain' : 'Not Found On-Chain'}</strong>
-                ${data.certAddress ? `<div>Cert Address: ${shortAddr(data.certAddress)}</div>` : ''}
-                ${data.proofHash ? `<div>Proof Hash: ${data.proofHash.substring(0, 24)}...</div>` : ''}
-                ${data.balance > 0 ? `<div>Cert Balance: ${data.balance} lamports</div>` : ''}
+                <strong>
+                    <i data-lucide="${data.onChain ? 'shield-check' : 'shield-off'}" style="width:16px;height:16px;"></i>
+                    ${data.onChain ? 'Verified On-Chain' : 'Not Found On-Chain'}
+                </strong>
+                ${data.certAddress ? `<div><i data-lucide="key" style="width:12px;height:12px;"></i> Cert: ${shortAddr(data.certAddress)}</div>` : ''}
+                ${data.proofHash ? `<div><i data-lucide="fingerprint" style="width:12px;height:12px;"></i> Hash: ${data.proofHash.substring(0, 24)}...</div>` : ''}
+                ${data.balance > 0 ? `<div><i data-lucide="coins" style="width:12px;height:12px;"></i> Balance: ${data.balance} lamports</div>` : ''}
             </div>`;
+            renderIcons();
         } catch (e) {
-            el.innerHTML = '<div class="error">Verification failed</div>';
+            el.innerHTML = `<div class="error"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i> Verification failed</div>`;
+            renderIcons();
         }
     }
 
@@ -485,18 +532,33 @@ const App = (() => {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = 'toast toast-' + type;
-        toast.textContent = msg;
+
+        const iconMap = { success: 'check-circle', error: 'alert-circle', info: 'info' };
+        toast.innerHTML = `<i data-lucide="${iconMap[type] || 'info'}" style="width:18px;height:18px;flex-shrink:0;"></i> ${escapeHtml(msg)}`;
         container.appendChild(toast);
+        renderIcons();
+
         setTimeout(() => toast.classList.add('show'), 10);
         setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        }, 3500);
     }
 
     function setStatus(msg) {
         const el = document.getElementById('status-bar');
-        if (el) el.textContent = msg;
+        if (!el) return;
+        if (msg) {
+            el.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> ${escapeHtml(msg)}`;
+        } else {
+            el.innerHTML = '';
+        }
+    }
+
+    function updateCharCount() {
+        const prompt = document.getElementById('mint-prompt');
+        const counter = document.getElementById('prompt-chars');
+        if (prompt && counter) counter.textContent = prompt.value.length;
     }
 
     // ─── INIT ────────────────────────────────────────────────────────
@@ -507,10 +569,16 @@ const App = (() => {
             tab.addEventListener('click', () => showView(tab.dataset.view));
         });
 
-        // Keyboard shortcut: Escape closes modal
+        // Escape closes modal
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModal();
         });
+
+        // Character counter for prompt
+        const promptEl = document.getElementById('mint-prompt');
+        if (promptEl) {
+            promptEl.addEventListener('input', updateCharCount);
+        }
 
         // Restore session
         await tryRestore();
@@ -519,12 +587,29 @@ const App = (() => {
         // Load initial view
         showView('gallery');
 
-        // Load platform stats
+        // Load platform stats with icons
         try {
             const stats = await api('GET', '/api/stats');
             const el = document.getElementById('platform-stats');
             if (el) {
-                el.innerHTML = `${stats.totalNFTs} NFTs &middot; ${stats.totalUsers} Users &middot; ${stats.totalListings} Listed`;
+                el.innerHTML = `
+                    <div class="stat-item">
+                        <i data-lucide="image" style="width:14px;height:14px;"></i>
+                        <span class="stat-value">${stats.totalNFTs}</span> NFTs
+                    </div>
+                    <div class="stat-item">
+                        <i data-lucide="users" style="width:14px;height:14px;"></i>
+                        <span class="stat-value">${stats.totalUsers}</span> Users
+                    </div>
+                    <div class="stat-item">
+                        <i data-lucide="store" style="width:14px;height:14px;"></i>
+                        <span class="stat-value">${stats.totalListings}</span> Listed
+                    </div>
+                    <div class="stat-item">
+                        <i data-lucide="cpu" style="width:14px;height:14px;"></i>
+                        ${stats.aiModel === 'flux-schnell' ? 'FLUX AI' : 'Mock AI'}
+                    </div>`;
+                renderIcons();
             }
         } catch (e) {}
     }

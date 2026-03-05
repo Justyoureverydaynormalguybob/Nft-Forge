@@ -48,7 +48,9 @@
 
     <!-- Status bar -->
     <div id="status-bar"></div>
-    <div id="platform-stats"></div>
+
+    <!-- Platform Stats -->
+    <div id="platform-stats" class="stats-bar"></div>
 
     <!-- Gallery View -->
     <div id="view-gallery" class="view active">
@@ -63,17 +65,39 @@
     <div id="view-mint" class="view">
         <div class="mint-container">
             <div class="mint-form">
-                <h2><i data-lucide="wand-2" class="view-icon"></i> Create AI NFT</h2>
-                <p class="mint-sub">Describe your vision and our AI will generate a unique piece of art</p>
+                <div class="mint-form-header">
+                    <div class="mint-form-icon">
+                        <i data-lucide="wand-2" style="width:24px;height:24px;"></i>
+                    </div>
+                    <div>
+                        <h2>Create AI NFT</h2>
+                        <p class="mint-sub">Describe your vision and FLUX AI will generate a unique piece of art</p>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label><i data-lucide="type" class="label-icon"></i> Name (optional)</label>
                     <input type="text" id="mint-name" placeholder="My Awesome NFT" maxlength="100"/>
                 </div>
                 <div class="form-group">
                     <label><i data-lucide="message-square" class="label-icon"></i> Describe your vision</label>
-                    <textarea id="mint-prompt" placeholder="A cyberpunk city at sunset with neon lights reflecting on rain-soaked streets..." maxlength="500" rows="3"></textarea>
+                    <textarea id="mint-prompt" placeholder="A cyberpunk city at sunset with neon lights reflecting on rain-soaked streets..." maxlength="500" rows="4"></textarea>
+                    <div class="char-count"><span id="prompt-chars">0</span>/500</div>
                 </div>
-                <button id="mint-btn" class="btn btn-primary" onclick="App.mintNFT()" style="width:100%">
+                <div class="mint-info-row">
+                    <div class="mint-info-chip">
+                        <i data-lucide="cpu" style="width:13px;height:13px;"></i>
+                        FLUX.1 schnell
+                    </div>
+                    <div class="mint-info-chip">
+                        <i data-lucide="square" style="width:13px;height:13px;"></i>
+                        1024 x 1024
+                    </div>
+                    <div class="mint-info-chip">
+                        <i data-lucide="link" style="width:13px;height:13px;"></i>
+                        On-chain proof
+                    </div>
+                </div>
+                <button id="mint-btn" class="btn btn-primary btn-mint" onclick="App.mintNFT()">
                     <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
                     Mint NFT
                 </button>
@@ -112,6 +136,27 @@
 
     <!-- Toast Container -->
     <div id="toast-container"></div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <div class="footer-brand">
+                <div class="logo-icon" style="width:24px;height:24px;font-size:12px;border-radius:6px;">X</div>
+                <span>Xeris NFT</span>
+            </div>
+            <div class="footer-links">
+                <a href="/" class="footer-link">
+                    <i data-lucide="home" style="width:14px;height:14px;"></i> Home
+                </a>
+                <a href="https://xeris-explorer.vercel.app/" target="_blank" class="footer-link">
+                    <i data-lucide="compass" style="width:14px;height:14px;"></i> Explorer
+                </a>
+                <a href="https://github.com" target="_blank" class="footer-link">
+                    <i data-lucide="github" style="width:14px;height:14px;"></i> GitHub
+                </a>
+            </div>
+        </div>
+    </footer>
 
     <script src="/js/xeris-tx.js"></script>
     <script src="/js/xeris-sdk.js"></script>

@@ -89,6 +89,9 @@ body {
     font-size: 13px;
     font-weight: 600;
     color: var(--success);
+    padding: 4px 10px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 6px;
 }
 
 /* ─── NAVIGATION ──────────────────────────────────────────────── */
@@ -126,20 +129,50 @@ body {
     padding: 0 20px;
     font-size: 12px;
     color: var(--accent);
-    height: 24px;
+    min-height: 24px;
     line-height: 24px;
 }
 
-#platform-stats {
-    text-align: center;
-    padding: 4px;
-    font-size: 12px;
+#status-bar:not(:empty) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ─── PLATFORM STATS BAR ─────────────────────────────────────── */
+
+.stats-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 10px 20px;
+    font-size: 13px;
     color: var(--text-muted);
+    border-bottom: 1px solid rgba(42, 52, 80, 0.4);
+    background: rgba(17, 24, 39, 0.4);
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-item i {
+    width: 14px;
+    height: 14px;
+    color: var(--accent);
+}
+
+.stat-value {
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
 /* ─── VIEWS ───────────────────────────────────────────────────── */
 
-.view { display: none; padding: 20px; }
+.view { display: none; padding: 20px; min-height: 60vh; }
 .view.active { display: block; }
 
 .view-header {
@@ -223,6 +256,9 @@ body {
     font-size: 12px;
     color: var(--text-secondary);
     font-family: monospace;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .listing-price {
@@ -230,12 +266,17 @@ body {
     font-weight: 700;
     color: var(--accent);
     margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 /* ─── BADGES ──────────────────────────────────────────────────── */
 
 .badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 10px;
@@ -321,22 +362,38 @@ body {
     border: 1px solid var(--border);
 }
 
-.mint-form h2 {
-    margin-bottom: 6px;
-    font-size: 22px;
+.mint-form-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.mint-form-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(79, 143, 255, 0.15);
+    color: var(--accent);
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.mint-form-header h2 {
+    font-size: 22px;
+    margin-bottom: 4px;
 }
 
 .mint-sub {
     font-size: 14px;
     color: var(--text-secondary);
-    margin-bottom: 24px;
 }
 
 .form-group {
     margin-bottom: 16px;
+    position: relative;
 }
 
 .form-group label {
@@ -375,8 +432,42 @@ body {
 
 .form-group textarea {
     resize: vertical;
-    min-height: 80px;
+    min-height: 100px;
     font-family: inherit;
+}
+
+.char-count {
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.mint-info-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.mint-info-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+}
+
+.btn-mint {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    justify-content: center;
 }
 
 #mint-preview {
@@ -385,13 +476,28 @@ body {
 
 .mint-result {
     text-align: center;
-    padding: 20px;
+    padding: 24px;
+    background: var(--bg-input);
+    border-radius: 12px;
+    border: 1px solid var(--border);
 }
 
 .mint-result img {
-    max-width: 300px;
+    max-width: 320px;
+    width: 100%;
     border-radius: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.mint-result h3 {
+    margin-bottom: 4px;
+}
+
+.mint-result p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 16px;
 }
 
 /* ─── MODAL ───────────────────────────────────────────────────── */
@@ -423,11 +529,12 @@ body {
     position: absolute;
     top: 12px;
     right: 12px;
-    background: var(--bg-card);
+    background: rgba(26, 32, 53, 0.8);
+    backdrop-filter: blur(8px);
     border: 1px solid var(--border);
     color: var(--text-primary);
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     cursor: pointer;
     font-size: 16px;
@@ -457,26 +564,38 @@ body {
 }
 
 .detail-info {
-    padding: 20px;
+    padding: 24px;
 }
 
-.detail-info h2 { margin-bottom: 8px; }
+.detail-info h2 {
+    margin-bottom: 8px;
+    font-size: 22px;
+}
 
 .prompt-text {
     color: var(--text-secondary);
     font-style: italic;
     margin-bottom: 16px;
     font-size: 14px;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
 }
 
 .detail-meta {
     font-size: 13px;
     color: var(--text-secondary);
     margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
 }
 
 .detail-meta div {
-    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .detail-meta a {
@@ -489,15 +608,19 @@ body {
     gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 12px;
+    align-items: center;
 }
 
 /* ─── VERIFY BOX ──────────────────────────────────────────────── */
 
 .verify-box {
-    padding: 12px;
-    border-radius: 8px;
+    padding: 14px;
+    border-radius: 10px;
     font-size: 13px;
     margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .verify-box.verified {
@@ -517,21 +640,33 @@ body {
 .list-form-inner {
     background: var(--bg-card);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 10px;
     margin-top: 12px;
+    border: 1px solid var(--border);
 }
 
-.list-form-inner h4 { margin-bottom: 8px; }
+.list-form-inner h4 {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 
 .list-form-inner input {
     width: 100%;
-    padding: 8px 12px;
+    padding: 10px 12px;
     background: var(--bg-input);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--text-primary);
     font-size: 14px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.list-form-inner input:focus {
+    border-color: var(--accent);
 }
 
 /* ─── TOAST NOTIFICATIONS ─────────────────────────────────────── */
@@ -553,11 +688,12 @@ body {
     transform: translateX(100%);
     opacity: 0;
     transition: all 0.3s ease;
-    max-width: 340px;
+    max-width: 360px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    font-weight: 500;
 }
 
 .toast.show { transform: translateX(0); opacity: 1; }
@@ -565,14 +701,123 @@ body {
 .toast-error { background: var(--error); color: white; }
 .toast-info { background: var(--accent); color: white; }
 
-/* ─── UTILITY ─────────────────────────────────────────────────── */
+/* ─── LOADING / EMPTY / ERROR STATES ─────────────────────────── */
 
 .hidden { display: none !important; }
-.loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 16px; }
-.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 16px; }
-.error { text-align: center; padding: 20px; color: var(--error); }
+
+.loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.empty-state-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+.error {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--error);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ─── SPINNER ─────────────────────────────────────────────────── */
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+}
+
+.spinner-accent {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── LINKS ───────────────────────────────────────────────────── */
 
 a { color: var(--accent); }
+
+/* ─── APP FOOTER ──────────────────────────────────────────────── */
+
+.app-footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 20px;
+    margin-top: 20px;
+    background: var(--bg-secondary);
+}
+
+.app-footer-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.footer-links {
+    display: flex;
+    gap: 20px;
+}
+
+.footer-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: color 0.2s;
+}
+
+.footer-link:hover { color: var(--text-primary); }
 
 /* ─── SCROLLBAR ───────────────────────────────────────────────── */
 
@@ -590,4 +835,10 @@ a { color: var(--accent); }
     .view { padding: 12px; }
     .modal-inner { margin-top: 20px; }
     .view-header h2 { font-size: 18px; }
+    .stats-bar { gap: 12px; font-size: 11px; flex-wrap: wrap; }
+    .mint-form { padding: 20px; }
+    .mint-form-header { flex-direction: column; }
+    .detail-meta { grid-template-columns: 1fr; }
+    .detail-info { padding: 16px; }
+    .app-footer-inner { justify-content: center; text-align: center; }
 }
