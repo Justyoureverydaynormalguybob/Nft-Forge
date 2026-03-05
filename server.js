@@ -41,10 +41,11 @@ app.use(helmet({
         directives: {
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdnjs.cloudflare.com"],
+            scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "https://gateway.pinata.cloud", "https://images.unsplash.com", "https://replicate.delivery", "https://*.replicate.delivery", "blob:"],
-            connectSrc: ["'self'", "https://api.replicate.com"]
+            connectSrc: ["'self'", "https://api.replicate.com", "https://unpkg.com"]
         }
     }
 }));
