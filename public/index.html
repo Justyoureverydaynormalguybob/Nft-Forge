@@ -15,12 +15,13 @@
         .hero {
             position: relative;
             min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             text-align: center;
-            padding: 40px 20px;
+            padding: 80px 20px 40px;
             overflow: hidden;
         }
 
@@ -28,61 +29,56 @@
             position: absolute;
             inset: 0;
             z-index: 0;
-            background:
-                url('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1920&q=80')
-                center / cover no-repeat;
+            background: #111;
         }
 
         .hero-bg::after {
             content: '';
             position: absolute;
             inset: 0;
-            background: linear-gradient(
-                180deg,
-                rgba(10, 14, 26, 0.88) 0%,
-                rgba(10, 14, 26, 0.75) 40%,
-                rgba(10, 14, 26, 0.92) 100%
-            );
+            background:
+                radial-gradient(ellipse 60% 50% at 50% 0%, rgba(201, 168, 76, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 80% 60% at 20% 100%, rgba(201, 168, 76, 0.04) 0%, transparent 50%);
         }
 
-        /* Animated floating orbs */
+        /* Gold accent lines */
         .orb {
             position: absolute;
             border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.3;
-            animation: float 8s ease-in-out infinite;
+            filter: blur(100px);
+            opacity: 0.12;
+            animation: float 10s ease-in-out infinite;
             z-index: 1;
         }
         .orb-1 {
-            width: 400px; height: 400px;
-            background: #4f8fff;
-            top: -100px; left: -100px;
+            width: 300px; height: 300px;
+            background: #c9a84c;
+            top: -80px; left: -60px;
             animation-delay: 0s;
         }
         .orb-2 {
-            width: 350px; height: 350px;
-            background: #7c3aed;
-            bottom: -80px; right: -80px;
-            animation-delay: -3s;
+            width: 250px; height: 250px;
+            background: #c9a84c;
+            bottom: -60px; right: -60px;
+            animation-delay: -4s;
         }
         .orb-3 {
-            width: 250px; height: 250px;
-            background: #10b981;
-            top: 50%; left: 60%;
-            opacity: 0.15;
-            animation-delay: -5s;
+            width: 180px; height: 180px;
+            background: #f0d78c;
+            top: 40%; left: 65%;
+            opacity: 0.06;
+            animation-delay: -7s;
         }
 
         @keyframes float {
             0%, 100% { transform: translateY(0) scale(1); }
-            50% { transform: translateY(-30px) scale(1.05); }
+            50% { transform: translateY(-20px) scale(1.03); }
         }
 
         .hero-content {
             position: relative;
             z-index: 2;
-            max-width: 700px;
+            max-width: 600px;
         }
 
         /* ─── LANDING NAV ─── */
@@ -92,66 +88,69 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 32px;
+            padding: 12px 16px;
             z-index: 100;
-            background: rgba(10, 14, 26, 0.6);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(42, 52, 80, 0.5);
+            background: rgba(17, 17, 17, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
         }
 
         .landing-nav .logo {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 18px;
+            gap: 8px;
+            font-size: 16px;
             font-weight: 700;
-            color: var(--text-primary);
+            color: var(--accent);
         }
 
         .landing-nav .logo-icon {
-            width: 36px; height: 36px;
+            width: 32px; height: 32px;
             background: var(--gradient);
-            border-radius: 10px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 18px;
+            color: #111;
+            font-size: 16px;
             font-weight: 800;
         }
 
         .landing-nav .nav-links {
             display: flex;
-            gap: 24px;
+            gap: 16px;
             align-items: center;
         }
 
         .landing-nav .nav-links a {
-            color: var(--text-secondary);
+            color: var(--text-muted);
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: color 0.2s;
         }
-        .landing-nav .nav-links a:hover { color: var(--text-primary); }
+        .landing-nav .nav-links a:hover { color: var(--accent); }
 
         /* ─── HERO TEXT ─── */
         .badge-testnet {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--warning);
-            padding: 6px 14px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 28px;
-            border: 1px solid rgba(245, 158, 11, 0.25);
+            margin-bottom: 24px;
+            border: 1px solid rgba(201, 168, 76, 0.25);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .landing-title {
-            font-size: 56px;
+            font-size: 48px;
             font-weight: 800;
             background: var(--gradient);
             -webkit-background-clip: text;
@@ -162,61 +161,62 @@
         }
 
         .landing-tagline {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
 
         .landing-sub {
-            font-size: 16px;
+            font-size: 15px;
             color: var(--text-secondary);
-            max-width: 480px;
-            margin: 0 auto 36px;
+            max-width: 440px;
+            margin: 0 auto 32px;
             line-height: 1.7;
         }
 
         .landing-cta {
             display: flex;
-            gap: 16px;
+            gap: 12px;
             flex-wrap: wrap;
             justify-content: center;
         }
 
         .landing-cta .btn {
-            padding: 14px 32px;
-            font-size: 16px;
+            padding: 12px 28px;
+            font-size: 14px;
         }
 
-        .landing-cta .btn i { width: 18px; height: 18px; }
+        .landing-cta .btn i { width: 16px; height: 16px; }
 
         /* ─── HOW IT WORKS ─── */
         .section {
             position: relative;
             z-index: 2;
-            padding: 80px 20px;
+            padding: 60px 16px;
         }
 
         .section-title {
             text-align: center;
-            font-size: 32px;
+            font-size: 26px;
             font-weight: 700;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
         }
 
         .section-sub {
             text-align: center;
             color: var(--text-secondary);
-            font-size: 15px;
-            margin-bottom: 48px;
-            max-width: 500px;
+            font-size: 14px;
+            margin-bottom: 40px;
+            max-width: 440px;
             margin-left: auto;
             margin-right: auto;
         }
 
         .steps {
             display: flex;
-            gap: 24px;
+            gap: 16px;
             max-width: 900px;
             margin: 0 auto;
             flex-wrap: wrap;
@@ -225,28 +225,27 @@
 
         .step {
             flex: 1;
-            min-width: 200px;
+            min-width: 180px;
             max-width: 260px;
             text-align: center;
-            position: relative;
         }
 
         .step-number {
-            width: 48px; height: 48px;
+            width: 44px; height: 44px;
             background: var(--gradient);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 16px;
+            margin: 0 auto 14px;
             font-weight: 700;
-            font-size: 18px;
-            color: white;
+            font-size: 16px;
+            color: #111;
         }
 
         .step h3 {
-            font-size: 16px;
-            margin-bottom: 8px;
+            font-size: 15px;
+            margin-bottom: 6px;
             color: var(--text-primary);
         }
 
@@ -259,49 +258,47 @@
         /* ─── FEATURES ─── */
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
             max-width: 960px;
             margin: 0 auto;
         }
 
         .feature {
-            background: rgba(26, 32, 53, 0.6);
-            backdrop-filter: blur(8px);
-            padding: 28px 24px;
-            border-radius: 16px;
+            background: var(--bg-card);
+            padding: 20px 18px;
+            border-radius: var(--radius-lg);
             border: 1px solid var(--border);
             transition: transform 0.2s, border-color 0.2s;
         }
         .feature:hover {
-            transform: translateY(-3px);
+            transform: translateY(-2px);
             border-color: var(--accent);
+            box-shadow: var(--gold-glow);
         }
 
         .feature-icon {
-            width: 48px; height: 48px;
-            border-radius: 12px;
+            width: 40px; height: 40px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
 
-        .feature-icon i { width: 24px; height: 24px; }
+        .feature-icon i { width: 20px; height: 20px; }
 
-        .feature-icon.blue   { background: rgba(79, 143, 255, 0.15); color: #4f8fff; }
-        .feature-icon.purple { background: rgba(124, 58, 237, 0.15); color: #7c3aed; }
-        .feature-icon.green  { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-        .feature-icon.orange { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .feature-icon.gold   { background: var(--accent-dim); color: var(--accent); }
+        .feature-icon.charcoal { background: rgba(160, 160, 160, 0.1); color: #a0a0a0; }
 
         .feature h3 {
-            font-size: 16px;
-            margin-bottom: 8px;
+            font-size: 14px;
+            margin-bottom: 4px;
             color: var(--text-primary);
         }
 
         .feature p {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-secondary);
             line-height: 1.6;
         }
@@ -310,19 +307,19 @@
         .showcase {
             position: relative;
             z-index: 2;
-            padding: 60px 20px 80px;
+            padding: 48px 16px 60px;
         }
 
         .showcase-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
             max-width: 900px;
             margin: 0 auto;
         }
 
         .showcase-card {
-            border-radius: 16px;
+            border-radius: var(--radius);
             overflow: hidden;
             aspect-ratio: 1;
             position: relative;
@@ -330,8 +327,9 @@
             transition: transform 0.3s, box-shadow 0.3s;
         }
         .showcase-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(79, 143, 255, 0.2);
+            transform: translateY(-3px);
+            box-shadow: var(--gold-glow);
+            border-color: var(--accent);
         }
 
         .showcase-card img {
@@ -342,12 +340,13 @@
         .showcase-card .overlay {
             position: absolute;
             bottom: 0; left: 0; right: 0;
-            padding: 16px;
-            background: linear-gradient(transparent, rgba(10, 14, 26, 0.9));
+            padding: 12px;
+            background: linear-gradient(transparent, rgba(17, 17, 17, 0.9));
         }
         .showcase-card .overlay span {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
+            color: var(--accent);
         }
 
         /* ─── FOOTER ─── */
@@ -355,7 +354,7 @@
             position: relative;
             z-index: 2;
             border-top: 1px solid var(--border);
-            padding: 40px 20px;
+            padding: 32px 16px;
             text-align: center;
         }
 
@@ -366,7 +365,7 @@
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 16px;
         }
 
         .footer-brand {
@@ -374,53 +373,85 @@
             align-items: center;
             gap: 8px;
             font-weight: 600;
-            color: var(--text-secondary);
+            font-size: 13px;
+            color: var(--text-muted);
         }
 
         .footer-brand .logo-icon {
-            width: 28px; height: 28px;
+            width: 24px; height: 24px;
             background: var(--gradient);
-            border-radius: 7px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 14px;
+            color: #111;
+            font-size: 12px;
             font-weight: 800;
         }
 
         .footer-links {
             display: flex;
-            gap: 24px;
+            gap: 16px;
         }
 
         .footer-links a {
             color: var(--text-muted);
             text-decoration: none;
-            font-size: 13px;
+            font-size: 12px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             transition: color 0.2s;
         }
-        .footer-links a:hover { color: var(--text-primary); }
-        .footer-links a i { width: 14px; height: 14px; }
+        .footer-links a:hover { color: var(--accent); }
+        .footer-links a i { width: 13px; height: 13px; }
 
         .footer-copy {
             width: 100%;
-            margin-top: 20px;
-            font-size: 12px;
+            margin-top: 16px;
+            font-size: 11px;
             color: var(--text-muted);
         }
 
         /* ─── RESPONSIVE ─── */
-        @media (max-width: 600px) {
-            .landing-title { font-size: 36px; }
+        @media (max-width: 375px) {
+            .hero { padding: 70px 14px 30px; }
+            .landing-title { font-size: 34px; }
+            .landing-tagline { font-size: 16px; }
+            .landing-sub { font-size: 13px; }
+            .landing-nav { padding: 10px 12px; }
+            .landing-nav .nav-links { gap: 10px; }
+            .landing-nav .nav-links a { font-size: 12px; }
+            .section { padding: 40px 12px; }
+            .section-title { font-size: 22px; }
+            .features { grid-template-columns: 1fr; }
+            .showcase-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .steps { flex-direction: column; align-items: center; }
+            .footer-inner { justify-content: center; }
+        }
+
+        @media (min-width: 376px) and (max-width: 600px) {
+            .landing-title { font-size: 40px; }
             .landing-tagline { font-size: 18px; }
-            .landing-nav { padding: 12px 16px; }
-            .landing-nav .nav-links { gap: 12px; }
-            .section { padding: 48px 16px; }
+            .features { grid-template-columns: 1fr 1fr; gap: 10px; }
             .footer-inner { justify-content: center; text-align: center; }
+        }
+
+        @media (min-width: 601px) and (max-width: 768px) {
+            .features { grid-template-columns: repeat(2, 1fr); }
+            .showcase-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (min-width: 769px) {
+            .landing-nav { padding: 14px 32px; }
+            .landing-title { font-size: 56px; }
+            .landing-tagline { font-size: 22px; }
+            .hero { padding: 100px 32px 60px; }
+            .section { padding: 80px 32px; }
+            .section-title { font-size: 32px; }
+            .features { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+            .showcase-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+            .landing-cta .btn { padding: 14px 32px; font-size: 16px; }
         }
     </style>
 </head>
@@ -435,7 +466,7 @@
         <div class="nav-links">
             <a href="#features">Features</a>
             <a href="#how-it-works">How it Works</a>
-            <a href="/app" class="btn btn-primary" style="padding: 8px 20px; font-size: 13px;">
+            <a href="/app" class="btn btn-primary" style="padding: 7px 16px; font-size: 12px;">
                 <i data-lucide="rocket"></i> Launch App
             </a>
         </div>
@@ -450,14 +481,14 @@
 
         <div class="hero-content">
             <div class="badge-testnet">
-                <i data-lucide="radio" style="width:14px;height:14px;"></i>
-                TESTNET LIVE
+                <i data-lucide="radio" style="width:12px;height:12px;"></i>
+                Testnet Live
             </div>
             <h1 class="landing-title">Xeris NFT</h1>
             <p class="landing-tagline">Create. Collect. Trade.</p>
             <p class="landing-sub">
                 Describe your vision and let AI bring it to life as a unique NFT on the Xeris blockchain.
-                Mint, verify, and trade — all in one place.
+                Mint and trade — all in one place.
             </p>
             <div class="landing-cta">
                 <a href="/app" class="btn btn-primary">
@@ -488,7 +519,7 @@
             <div class="step">
                 <div class="step-number">3</div>
                 <h3>Mint & Trade</h3>
-                <p>Your NFT is minted on the Xeris blockchain with a verifiable proof. List it for sale or collect.</p>
+                <p>Your NFT is minted on the Xeris blockchain. List it for sale or add it to your collection.</p>
             </div>
         </div>
     </section>
@@ -499,28 +530,28 @@
         <p class="section-sub">Everything you need to create, own, and trade AI-generated digital art</p>
         <div class="features">
             <div class="feature">
-                <div class="feature-icon blue">
+                <div class="feature-icon gold">
                     <i data-lucide="wand-2"></i>
                 </div>
                 <h3>AI Art Generation</h3>
                 <p>Describe your vision and get a unique NFT image generated by AI — no art skills required.</p>
             </div>
             <div class="feature">
-                <div class="feature-icon purple">
+                <div class="feature-icon charcoal">
                     <i data-lucide="layers"></i>
                 </div>
                 <h3>Xeris Blockchain</h3>
                 <p>Built on the Xeris L1 chain with hardware-secured triple consensus for fast, secure minting.</p>
             </div>
             <div class="feature">
-                <div class="feature-icon green">
+                <div class="feature-icon gold">
                     <i data-lucide="hard-drive"></i>
                 </div>
                 <h3>IPFS Storage</h3>
-                <p>Images stored permanently on IPFS via Pinata — decentralized and tamper-proof.</p>
+                <p>Images stored permanently on IPFS — decentralized and tamper-proof.</p>
             </div>
             <div class="feature">
-                <div class="feature-icon orange">
+                <div class="feature-icon charcoal">
                     <i data-lucide="store"></i>
                 </div>
                 <h3>Marketplace</h3>
