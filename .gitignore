@@ -3,3 +3,4 @@ data/
 .env
 *.log
 escrow-keypair.txt
+package-lock.json
