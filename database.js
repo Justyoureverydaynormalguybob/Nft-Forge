@@ -146,7 +146,7 @@ function incrementMintCount(collectionId) {
 
 // ─── NFT HELPERS ─────────────────────────────────────────────────────
 
-function createNFT({ collectionId, tokenNumber, ownerAddress, creatorAddress, name, promptText, imageCID, metadataCID, imageUrl, metadataUrl, mintTxSignature, certAddress, proofHash }) {
+function createNFT({ collectionId, tokenNumber, ownerAddress, creatorAddress, name, promptText, imageCID, metadataCID, imageUrl, metadataUrl }) {
     return nfts.create({
         collectionId: collectionId || null,
         tokenNumber: tokenNumber || nfts.data.length + 1,
@@ -158,9 +158,6 @@ function createNFT({ collectionId, tokenNumber, ownerAddress, creatorAddress, na
         metadataCID: metadataCID || '',
         imageUrl: imageUrl || '',
         metadataUrl: metadataUrl || '',
-        mintTxSignature: mintTxSignature || '',
-        certAddress: certAddress || '',
-        proofHash: proofHash || '',
         mintedAt: new Date().toISOString()
     });
 }

@@ -245,9 +245,6 @@ const App = (() => {
                     <i data-lucide="user" style="width:11px;height:11px;"></i>
                     ${shortAddr(nft.creatorAddress)}
                 </div>
-                ${nft.mintTxSignature
-                    ? '<span class="badge on-chain"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> On-Chain</span>'
-                    : '<span class="badge off-chain"><i data-lucide="shield-off" style="width:10px;height:10px;"></i> Off-Chain</span>'}
             </div>
         </div>`;
     }
@@ -280,16 +277,12 @@ const App = (() => {
                     <div><i data-lucide="user" style="width:13px;height:13px;"></i> <strong>Owner:</strong> ${shortAddr(nft.ownerAddress)}</div>
                     ${collection ? `<div><i data-lucide="folder" style="width:13px;height:13px;"></i> <strong>Collection:</strong> ${escapeHtml(collection.name)}</div>` : ''}
                     <div><i data-lucide="calendar" style="width:13px;height:13px;"></i> <strong>Minted:</strong> ${new Date(nft.mintedAt).toLocaleDateString()}</div>
-                    ${nft.mintTxSignature ? `<div><i data-lucide="hash" style="width:13px;height:13px;"></i> <strong>TX:</strong> <a href="https://explorer.xerisweb.com/" target="_blank">${nft.mintTxSignature.substring(0, 16)}...</a></div>` : ''}
-                    ${nft.certAddress ? `<div><i data-lucide="file-check" style="width:13px;height:13px;"></i> <strong>Cert:</strong> ${shortAddr(nft.certAddress)}</div>` : ''}
                 </div>
                 <div class="detail-actions">
                     ${isOwner && !activeListing ? `<button class="btn btn-primary" onclick="App.showListForm('${nft.id}')"><i data-lucide="tag" style="width:14px;height:14px;"></i> List for Sale</button>` : ''}
                     ${activeListing && !isOwner && state.connected ? `<button class="btn btn-buy" onclick="App.buyNFT('${activeListing.id}', ${activeListing.priceLamports})"><i data-lucide="shopping-cart" style="width:14px;height:14px;"></i> Buy for ${activeListing.priceXRS} XRS</button>` : ''}
                     ${activeListing ? `<div class="listing-price"><i data-lucide="coins" style="width:16px;height:16px;"></i> ${activeListing.priceXRS} XRS</div>` : ''}
-                    <button class="btn btn-secondary" onclick="App.verifyNFT('${nft.id}')"><i data-lucide="shield-check" style="width:14px;height:14px;"></i> Verify On-Chain</button>
                 </div>
-                <div id="verify-result"></div>
                 <div id="list-form" class="hidden"></div>
             </div>`;
             renderIcons();
@@ -327,7 +320,7 @@ const App = (() => {
         const mintBtn = document.getElementById('mint-btn');
         mintBtn.disabled = true;
         mintBtn.innerHTML = '<span class="spinner"></span> Generating with AI...';
-        setStatus('Generating AI image & minting on-chain...');
+        setStatus('Generating AI image & minting NFT...');
 
         try {
             const data = await api('POST', '/api/mint', { prompt, name: name || undefined });
@@ -340,9 +333,7 @@ const App = (() => {
                 <div class="mint-result">
                     <img src="${escapeHtml(data.nft.imageGateway || data.nft.imageUrl)}" alt="${escapeHtml(data.nft.name)}"/>
                     <h3>${escapeHtml(data.nft.name)}</h3>
-                    <p>${data.nft.onChain
-                        ? '<i data-lucide="shield-check" style="width:14px;height:14px;color:#10b981;"></i> On-chain proof recorded!'
-                        : '<i data-lucide="shield-off" style="width:14px;height:14px;color:#f59e0b;"></i> Minted (off-chain)'}</p>
+                    <p><i data-lucide="check-circle" style="width:14px;height:14px;color:#10b981;"></i> Minted successfully!</p>
                     <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">
                         <i data-lucide="eye" style="width:14px;height:14px;"></i> View Details
                     </button>
@@ -404,9 +395,7 @@ const App = (() => {
                 <div class="mint-result">
                     <img src="${escapeHtml(data.nft.imageGateway || data.nft.imageUrl)}" alt="${escapeHtml(data.nft.name)}"/>
                     <h3>${escapeHtml(data.nft.name)}</h3>
-                    <p>${data.nft.onChain
-                        ? '<i data-lucide="shield-check" style="width:14px;height:14px;color:#10b981;"></i> On-chain proof recorded!'
-                        : '<i data-lucide="shield-off" style="width:14px;height:14px;color:#f59e0b;"></i> Minted (off-chain)'}</p>
+                    <p><i data-lucide="check-circle" style="width:14px;height:14px;color:#10b981;"></i> Minted successfully!</p>
                     <p style="font-size:12px;color:var(--text-muted);">Owner: ${shortAddr(wallet.address)}</p>
                     <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">
                         <i data-lucide="eye" style="width:14px;height:14px;"></i> View Details
@@ -623,31 +612,6 @@ const App = (() => {
         }
     }
 
-    // ─── VERIFY ──────────────────────────────────────────────────────
-
-    async function verifyNFT(nftId) {
-        const el = document.getElementById('verify-result');
-        el.innerHTML = `<div class="loading" style="padding:16px;"><div class="spinner-accent"></div>Verifying on-chain...</div>`;
-
-        try {
-            const data = await api('GET', '/api/verify/' + nftId);
-            el.innerHTML = `
-            <div class="verify-box ${data.onChain ? 'verified' : 'unverified'}">
-                <strong>
-                    <i data-lucide="${data.onChain ? 'shield-check' : 'shield-off'}" style="width:16px;height:16px;"></i>
-                    ${data.onChain ? 'Verified On-Chain' : 'Not Found On-Chain'}
-                </strong>
-                ${data.certAddress ? `<div><i data-lucide="key" style="width:12px;height:12px;"></i> Cert: ${shortAddr(data.certAddress)}</div>` : ''}
-                ${data.proofHash ? `<div><i data-lucide="fingerprint" style="width:12px;height:12px;"></i> Hash: ${data.proofHash.substring(0, 24)}...</div>` : ''}
-                ${data.balance > 0 ? `<div><i data-lucide="coins" style="width:12px;height:12px;"></i> Balance: ${data.balance} lamports</div>` : ''}
-            </div>`;
-            renderIcons();
-        } catch (e) {
-            el.innerHTML = `<div class="error"><i data-lucide="alert-circle" style="width:16px;height:16px;"></i> Verification failed</div>`;
-            renderIcons();
-        }
-    }
-
     // ─── UI HELPERS ──────────────────────────────────────────────────
 
     function updateUI() {
@@ -801,7 +765,6 @@ const App = (() => {
         showListForm,
         createListing,
         buyNFT,
-        verifyNFT,
         loadGallery,
         loadMarketplace,
         loadMyNFTs

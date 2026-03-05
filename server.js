@@ -2,7 +2,6 @@
 // NFT-XERIS — EXPRESS SERVER
 // ============================================
 // AI-generated NFT minting platform on Xeris chain.
-// Mock contract layer with on-chain proofs.
 // ============================================
 
 require('dotenv').config();
@@ -187,53 +186,13 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
                 collection: collection ? collection.name : 'Uncollected',
                 ai_model: imageResult.model || 'flux-schnell',
                 created_at: new Date().toISOString()
-            },
-            xeris_proof: {}
+            }
         };
 
         // 4. Upload metadata to IPFS
         const metadataUpload = await ipfs.uploadMetadata(metadata);
 
-        // 5. Build proof hash
-        const proofHash = crypto.createHash('sha256')
-            .update(imageUpload.cid + metadataUpload.cid + creatorAddress + Date.now().toString())
-            .digest('hex');
-
-        // 6. Record on-chain proof via NativeTransfer
-        let mintTxSignature = '';
-        let certAddress = '';
-        let blockSlot = null;
-
-        try {
-            const blockhash = await chain.getRecentBlockhash();
-            const certTx = txBuilder.buildCertificationTx(proofHash, blockhash, serverKeypair);
-            certAddress = certTx.certAddress;
-
-            const submitResult = await chain.submitSignedTransaction({
-                txBase64: certTx.base64,
-                signature: certTx.signatureBase58
-            });
-
-            if (submitResult.success) {
-                mintTxSignature = certTx.signatureBase58;
-                blockSlot = submitResult.blockNumber;
-                console.log(`[MINT] On-chain proof recorded: ${mintTxSignature.substring(0, 16)}... slot ${blockSlot}`);
-            } else {
-                console.log('[MINT] On-chain proof failed, continuing with off-chain only');
-            }
-        } catch (e) {
-            console.error(`[MINT] Chain proof error: ${e.message}`);
-        }
-
-        // Update metadata with proof info
-        metadata.xeris_proof = {
-            cert_address: certAddress,
-            tx_signature: mintTxSignature,
-            block_slot: blockSlot,
-            proof_hash: proofHash
-        };
-
-        // 7. Save NFT to database
+        // 5. Save NFT to database
         const nft = db.createNFT({
             collectionId: collectionId || null,
             tokenNumber: nftNumber,
@@ -244,10 +203,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
             imageCID: imageUpload.cid,
             metadataCID: metadataUpload.cid,
             imageUrl: imageUpload.gateway,
-            metadataUrl: metadataUpload.gateway,
-            mintTxSignature,
-            certAddress,
-            proofHash
+            metadataUrl: metadataUpload.gateway
         });
 
         // Increment collection mint count
@@ -262,9 +218,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
             nft: {
                 ...nft,
                 imageGateway: imageUpload.gateway,
-                metadataGateway: metadataUpload.gateway,
-                onChain: !!mintTxSignature,
-                blockSlot
+                metadataGateway: metadataUpload.gateway
             }
         });
     } catch (e) {
@@ -322,53 +276,13 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
                 ai_model: imageResult.model || 'flux-schnell',
                 created_at: new Date().toISOString(),
                 mint_type: 'guest'
-            },
-            xeris_proof: {}
+            }
         };
 
         // 4. Upload metadata to IPFS
         const metadataUpload = await ipfs.uploadMetadata(metadata);
 
-        // 5. Build proof hash
-        const proofHash = crypto.createHash('sha256')
-            .update(imageUpload.cid + metadataUpload.cid + creatorAddress + Date.now().toString())
-            .digest('hex');
-
-        // 6. Record on-chain proof via NativeTransfer
-        let mintTxSignature = '';
-        let certAddress = '';
-        let blockSlot = null;
-
-        try {
-            const blockhash = await chain.getRecentBlockhash();
-            const certTx = txBuilder.buildCertificationTx(proofHash, blockhash, serverKeypair);
-            certAddress = certTx.certAddress;
-
-            const submitResult = await chain.submitSignedTransaction({
-                txBase64: certTx.base64,
-                signature: certTx.signatureBase58
-            });
-
-            if (submitResult.success) {
-                mintTxSignature = certTx.signatureBase58;
-                blockSlot = submitResult.blockNumber;
-                console.log(`[GUEST MINT] On-chain proof recorded: ${mintTxSignature.substring(0, 16)}... slot ${blockSlot}`);
-            } else {
-                console.log('[GUEST MINT] On-chain proof failed, continuing with off-chain only');
-            }
-        } catch (e) {
-            console.error(`[GUEST MINT] Chain proof error: ${e.message}`);
-        }
-
-        // Update metadata with proof info
-        metadata.xeris_proof = {
-            cert_address: certAddress,
-            tx_signature: mintTxSignature,
-            block_slot: blockSlot,
-            proof_hash: proofHash
-        };
-
-        // 7. Save NFT to database
+        // 5. Save NFT to database
         const nft = db.createNFT({
             collectionId: null,
             tokenNumber: nftNumber,
@@ -379,10 +293,7 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
             imageCID: imageUpload.cid,
             metadataCID: metadataUpload.cid,
             imageUrl: imageUpload.gateway,
-            metadataUrl: metadataUpload.gateway,
-            mintTxSignature,
-            certAddress,
-            proofHash
+            metadataUrl: metadataUpload.gateway
         });
 
         console.log(`[GUEST MINT] NFT created: ${nft.id} "${nftName}"`);
@@ -392,9 +303,7 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
             nft: {
                 ...nft,
                 imageGateway: imageUpload.gateway,
-                metadataGateway: metadataUpload.gateway,
-                onChain: !!mintTxSignature,
-                blockSlot
+                metadataGateway: metadataUpload.gateway
             }
         });
     } catch (e) {
@@ -648,37 +557,6 @@ app.get('/api/metadata/:filename', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'public, max-age=31536000');
     res.sendFile(filePath);
-});
-
-// ─── VERIFICATION ROUTE ──────────────────────────────────────────────
-
-app.get('/api/verify/:nftId', async (req, res) => {
-    const nft = db.nfts.getById(req.params.nftId);
-    if (!nft) return res.status(404).json({ error: 'NFT not found' });
-
-    const verification = {
-        nftId: nft.id,
-        name: nft.name,
-        certAddress: nft.certAddress,
-        proofHash: nft.proofHash,
-        mintTxSignature: nft.mintTxSignature,
-        imageCID: nft.imageCID,
-        metadataCID: nft.metadataCID,
-        onChain: false,
-        balance: 0
-    };
-
-    if (nft.certAddress) {
-        try {
-            const balanceInfo = await chain.getBalance(nft.certAddress);
-            verification.balance = balanceInfo.balance;
-            verification.onChain = balanceInfo.balance > 0;
-        } catch (e) {
-            console.error(`[VERIFY] Balance check failed: ${e.message}`);
-        }
-    }
-
-    res.json(verification);
 });
 
 // ─── CHAIN PROXY ROUTES ─────────────────────────────────────────────
