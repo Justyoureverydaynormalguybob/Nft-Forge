@@ -71,7 +71,7 @@
                     </div>
                     <div>
                         <h2>Create AI NFT</h2>
-                        <p class="mint-sub">Describe your vision and FLUX AI will generate a unique piece of art</p>
+                        <p class="mint-sub">Describe your vision and AI will generate a unique piece of art</p>
                     </div>
                 </div>
                 <div class="form-group">
@@ -86,7 +86,7 @@
                 <div class="mint-info-row">
                     <div class="mint-info-chip">
                         <i data-lucide="cpu" style="width:13px;height:13px;"></i>
-                        FLUX.1 schnell
+                        AI Generated
                     </div>
                     <div class="mint-info-chip">
                         <i data-lucide="square" style="width:13px;height:13px;"></i>
@@ -94,18 +94,11 @@
                     </div>
                 </div>
                 <div id="mint-buttons" class="mint-buttons">
-                    <button id="mint-btn" class="btn btn-primary btn-mint" onclick="App.mintNFT()">
-                        <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
-                        Mint NFT
+                    <button id="generate-btn" class="btn btn-primary btn-mint" onclick="App.generateImage()">
+                        <i data-lucide="wand-2" style="width:16px;height:16px;"></i>
+                        Generate
                     </button>
-                    <div id="quick-mint-section" class="quick-mint-section">
-                        <div class="mint-divider"><span>or</span></div>
-                        <button id="quick-mint-btn" class="btn btn-mint btn-quick-mint" onclick="App.guestMint()">
-                            <i data-lucide="zap" style="width:16px;height:16px;"></i>
-                            Quick Mint — No Wallet Needed
-                        </button>
-                        <p class="quick-mint-hint">A new wallet will be created for you. Save your seed phrase to access your NFTs later.</p>
-                    </div>
+                    <p class="quick-mint-hint">Generate an image first, then mint when you're happy with it.</p>
                 </div>
                 <div id="mint-preview"></div>
             </div>

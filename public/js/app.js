@@ -268,10 +268,6 @@ const App = (() => {
             <div class="detail-image"><img src="${escapeHtml(nft.imageUrl)}" alt="${escapeHtml(nft.name)}"/></div>
             <div class="detail-info">
                 <h2>${escapeHtml(nft.name)}</h2>
-                <div class="prompt-text">
-                    <i data-lucide="quote" style="width:14px;height:14px;opacity:0.5;"></i>
-                    "${escapeHtml(nft.promptText)}"
-                </div>
                 <div class="detail-meta">
                     <div><i data-lucide="paintbrush" style="width:13px;height:13px;"></i> <strong>Creator:</strong> ${shortAddr(nft.creatorAddress)}</div>
                     <div><i data-lucide="user" style="width:13px;height:13px;"></i> <strong>Owner:</strong> ${shortAddr(nft.ownerAddress)}</div>
@@ -299,32 +295,88 @@ const App = (() => {
         document.getElementById('nft-modal').classList.remove('active');
     }
 
-    // ─── MINTING ─────────────────────────────────────────────────────
+    // ─── GENERATION & MINTING ─────────────────────────────────────────
 
-    async function mintNFT() {
-        if (!state.connected) {
-            showToast('Connect wallet first', 'error');
-            return;
-        }
+    let _currentGeneration = null; // { generationId, imageUrl }
 
+    async function generateImage() {
         const promptInput = document.getElementById('mint-prompt');
-        const nameInput = document.getElementById('mint-name');
         const prompt = promptInput.value.trim();
-        const name = nameInput ? nameInput.value.trim() : '';
 
         if (prompt.length < 3) {
             showToast('Prompt must be at least 3 characters', 'error');
             return;
         }
 
-        const mintBtn = document.getElementById('mint-btn');
-        mintBtn.disabled = true;
-        mintBtn.innerHTML = '<span class="spinner"></span> Generating with AI...';
-        setStatus('Generating AI image & minting NFT...');
+        const genBtn = document.getElementById('generate-btn');
+        genBtn.disabled = true;
+        genBtn.innerHTML = '<span class="spinner"></span> Generating...';
+        setStatus('Generating AI image...');
 
         try {
-            const data = await api('POST', '/api/mint', { prompt, name: name || undefined });
+            const data = await api('POST', '/api/generate', { prompt });
 
+            _currentGeneration = {
+                generationId: data.generationId,
+                imageUrl: data.imageUrl
+            };
+
+            // Show preview with mint/regenerate options
+            const preview = document.getElementById('mint-preview');
+            if (preview) {
+                preview.innerHTML = `
+                <div class="mint-result">
+                    <img src="${escapeHtml(data.imageUrl)}" alt="AI Generated Preview"/>
+                    <p style="color:var(--text-secondary);font-size:13px;margin:8px 0;">Happy with this image?</p>
+                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                        ${state.connected ? `
+                        <button class="btn btn-primary" onclick="App.mintNFT()">
+                            <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Mint NFT
+                        </button>` : ''}
+                        <button class="btn btn-primary btn-quick-mint" onclick="App.guestMint()" ${state.connected ? 'style="display:none;"' : ''}>
+                            <i data-lucide="zap" style="width:14px;height:14px;"></i> Quick Mint — No Wallet
+                        </button>
+                        <button class="btn btn-secondary" onclick="App.generateImage()">
+                            <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Regenerate
+                        </button>
+                    </div>
+                </div>`;
+                renderIcons();
+            }
+
+            showToast('Image generated! Mint it or regenerate.', 'success');
+        } catch (e) {
+            showToast('Generation failed: ' + e.message, 'error');
+        } finally {
+            genBtn.disabled = false;
+            genBtn.innerHTML = '<i data-lucide="wand-2" style="width:16px;height:16px;"></i> Generate';
+            renderIcons();
+            setStatus('');
+        }
+    }
+
+    async function mintNFT() {
+        if (!state.connected) {
+            showToast('Connect wallet first', 'error');
+            return;
+        }
+        if (!_currentGeneration) {
+            showToast('Generate an image first', 'error');
+            return;
+        }
+
+        const nameInput = document.getElementById('mint-name');
+        const name = nameInput ? nameInput.value.trim() : '';
+
+        setStatus('Minting NFT...');
+
+        try {
+            const data = await api('POST', '/api/mint', {
+                generationId: _currentGeneration.generationId,
+                name: name || undefined
+            });
+
+            _currentGeneration = null;
             showToast('NFT minted successfully!', 'success');
 
             const preview = document.getElementById('mint-preview');
@@ -341,15 +393,12 @@ const App = (() => {
                 renderIcons();
             }
 
-            promptInput.value = '';
+            document.getElementById('mint-prompt').value = '';
             if (nameInput) nameInput.value = '';
             updateCharCount();
         } catch (e) {
             showToast('Mint failed: ' + e.message, 'error');
         } finally {
-            mintBtn.disabled = false;
-            mintBtn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px;"></i> Mint NFT';
-            renderIcons();
             setStatus('');
         }
     }
@@ -359,36 +408,28 @@ const App = (() => {
     let _guestSeedPhrase = null;
 
     async function guestMint() {
-        const promptInput = document.getElementById('mint-prompt');
-        const nameInput = document.getElementById('mint-name');
-        const prompt = promptInput.value.trim();
-        const name = nameInput ? nameInput.value.trim() : '';
-
-        if (prompt.length < 3) {
-            showToast('Prompt must be at least 3 characters', 'error');
+        if (!_currentGeneration) {
+            showToast('Generate an image first', 'error');
             return;
         }
 
-        const quickBtn = document.getElementById('quick-mint-btn');
-        quickBtn.disabled = true;
-        quickBtn.innerHTML = '<span class="spinner"></span> Creating wallet & minting...';
-        setStatus('Generating browser wallet...');
+        const nameInput = document.getElementById('mint-name');
+        const name = nameInput ? nameInput.value.trim() : '';
+
+        setStatus('Creating wallet & minting...');
 
         try {
-            // 1. Generate wallet client-side
             const wallet = await XerisKeygen.createWallet();
-            setStatus('Generating AI image & minting NFT...');
 
-            // 2. Mint via guest endpoint
             const data = await api('POST', '/api/mint/guest', {
-                prompt,
+                generationId: _currentGeneration.generationId,
                 walletAddress: wallet.address,
                 name: name || undefined
             });
 
+            _currentGeneration = null;
             showToast('NFT minted successfully!', 'success');
 
-            // 3. Show mint result preview
             const preview = document.getElementById('mint-preview');
             if (preview) {
                 preview.innerHTML = `
@@ -404,18 +445,14 @@ const App = (() => {
                 renderIcons();
             }
 
-            // 4. Show seed phrase modal
             showSeedPhrase(wallet.mnemonic, data.nft, wallet.address);
 
-            promptInput.value = '';
+            document.getElementById('mint-prompt').value = '';
             if (nameInput) nameInput.value = '';
             updateCharCount();
         } catch (e) {
             showToast('Guest mint failed: ' + e.message, 'error');
         } finally {
-            quickBtn.disabled = false;
-            quickBtn.innerHTML = '<i data-lucide="zap" style="width:16px;height:16px;"></i> Quick Mint — No Wallet Needed';
-            renderIcons();
             setStatus('');
         }
     }
@@ -638,17 +675,7 @@ const App = (() => {
     }
 
     function updateMintButtons() {
-        const mintBtn = document.getElementById('mint-btn');
-        const quickSection = document.getElementById('quick-mint-section');
-        if (!mintBtn || !quickSection) return;
-
-        if (state.connected) {
-            mintBtn.classList.remove('hidden');
-            quickSection.classList.add('hidden');
-        } else {
-            mintBtn.classList.add('hidden');
-            quickSection.classList.remove('hidden');
-        }
+        // Generate button is always visible — mint/guest-mint appear in preview after generation
     }
 
     function shortAddr(addr) {
@@ -743,7 +770,7 @@ const App = (() => {
                     </div>
                     <div class="stat-item">
                         <i data-lucide="cpu" style="width:14px;height:14px;"></i>
-                        ${stats.aiModel === 'flux-schnell' ? 'FLUX AI' : 'Mock AI'}
+                        AI Powered
                     </div>`;
                 renderIcons();
             }
@@ -755,6 +782,7 @@ const App = (() => {
         connectWallet,
         disconnectWallet,
         showView,
+        generateImage,
         mintNFT,
         guestMint,
         showSeedPhrase,

@@ -141,19 +141,84 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
     res.json({ user });
 });
 
-// ─── MINT ROUTES ─────────────────────────────────────────────────────
+// ─── GENERATE ROUTE (preview only, no mint) ─────────────────────────
 
-app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
+// Store pending generations (in-memory, cleared on restart)
+const pendingGenerations = new Map();
+
+// Clean old generations every 10 minutes
+setInterval(() => {
+    const cutoff = Date.now() - 30 * 60 * 1000; // 30 min expiry
+    for (const [key, gen] of pendingGenerations) {
+        if (gen.createdAt < cutoff) pendingGenerations.delete(key);
+    }
+}, 10 * 60 * 1000);
+
+const generateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    message: { error: 'Too many generate requests, please wait' }
+});
+
+app.post('/api/generate', generateLimiter, async (req, res) => {
     try {
-        const { prompt, collectionId, name } = req.body;
+        const { prompt } = req.body;
         if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
             return res.status(400).json({ error: 'Prompt must be at least 3 characters' });
         }
 
-        const creatorAddress = req.user.address;
         const sanitizedPrompt = prompt.trim().substring(0, 500);
+        console.log(`[GENERATE] prompt: "${sanitizedPrompt.substring(0, 30)}..."`);
 
-        // Verify collection exists and belongs to creator (if specified)
+        // Generate AI image
+        const imageResult = await aiImage.generateImage(sanitizedPrompt);
+
+        // Upload image to IPFS
+        const genId = crypto.randomUUID();
+        const ext = imageResult.fileExtension || 'webp';
+        const filename = `preview-${genId}.${ext}`;
+        const imageUpload = await ipfs.uploadImage(imageResult.imageBuffer, filename);
+
+        // Store for later minting
+        pendingGenerations.set(genId, {
+            prompt: sanitizedPrompt,
+            imageCID: imageUpload.cid,
+            imageUrl: imageUpload.url,
+            imageGateway: imageUpload.gateway,
+            fileExtension: ext,
+            createdAt: Date.now()
+        });
+
+        console.log(`[GENERATE] Preview ready: ${genId}`);
+
+        res.json({
+            success: true,
+            generationId: genId,
+            imageUrl: imageUpload.gateway
+        });
+    } catch (e) {
+        console.error(`[GENERATE] Error: ${e.message}`);
+        res.status(500).json({ error: 'Generation failed: ' + e.message });
+    }
+});
+
+// ─── MINT ROUTES ─────────────────────────────────────────────────────
+
+app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
+    try {
+        const { generationId, collectionId, name } = req.body;
+        if (!generationId) {
+            return res.status(400).json({ error: 'Generate an image first' });
+        }
+
+        const gen = pendingGenerations.get(generationId);
+        if (!gen) {
+            return res.status(400).json({ error: 'Generation expired or not found. Please generate again.' });
+        }
+
+        const creatorAddress = req.user.address;
+
+        // Verify collection exists (if specified)
         let collection = null;
         if (collectionId) {
             collection = db.collections.getById(collectionId);
@@ -163,53 +228,45 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
             }
         }
 
-        console.log(`[MINT] Generating NFT for ${creatorAddress.substring(0, 12)}... prompt: "${sanitizedPrompt.substring(0, 30)}..."`);
-
-        // 1. Generate image with FLUX.1 schnell (or mock fallback)
-        const imageResult = await aiImage.generateImage(sanitizedPrompt);
-
-        // 2. Upload image to IPFS
         const nftNumber = db.nfts.data.length + 1;
-        const ext = imageResult.fileExtension || 'webp';
-        const filename = `nft-${nftNumber}.${ext}`;
-        const imageUpload = await ipfs.uploadImage(imageResult.imageBuffer, filename);
-
-        // 3. Build metadata
         const nftName = name || `AI Art #${nftNumber}`;
+
+        // Build metadata
         const metadata = {
             name: nftName,
-            description: `Generated from prompt: ${sanitizedPrompt}`,
-            image: imageUpload.url,
+            description: `AI-generated NFT on Xeris`,
+            image: gen.imageUrl,
             attributes: {
-                prompt: sanitizedPrompt,
                 creator: creatorAddress,
                 collection: collection ? collection.name : 'Uncollected',
-                ai_model: imageResult.model || 'flux-schnell',
+                ai_generated: true,
                 created_at: new Date().toISOString()
             }
         };
 
-        // 4. Upload metadata to IPFS
+        // Upload metadata to IPFS
         const metadataUpload = await ipfs.uploadMetadata(metadata);
 
-        // 5. Save NFT to database
+        // Save NFT to database
         const nft = db.createNFT({
             collectionId: collectionId || null,
             tokenNumber: nftNumber,
             ownerAddress: creatorAddress,
             creatorAddress,
             name: nftName,
-            promptText: sanitizedPrompt,
-            imageCID: imageUpload.cid,
+            promptText: gen.prompt,
+            imageCID: gen.imageCID,
             metadataCID: metadataUpload.cid,
-            imageUrl: imageUpload.gateway,
+            imageUrl: gen.imageGateway,
             metadataUrl: metadataUpload.gateway
         });
 
-        // Increment collection mint count
         if (collectionId) {
             db.incrementMintCount(collectionId);
         }
+
+        // Remove used generation
+        pendingGenerations.delete(generationId);
 
         console.log(`[MINT] NFT created: ${nft.id} "${nftName}"`);
 
@@ -217,7 +274,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
             success: true,
             nft: {
                 ...nft,
-                imageGateway: imageUpload.gateway,
+                imageGateway: gen.imageGateway,
                 metadataGateway: metadataUpload.gateway
             }
         });
@@ -231,70 +288,60 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
 
 app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
     try {
-        const { prompt, walletAddress, name } = req.body;
+        const { generationId, walletAddress, name } = req.body;
 
-        if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
-            return res.status(400).json({ error: 'Prompt must be at least 3 characters' });
+        if (!generationId) {
+            return res.status(400).json({ error: 'Generate an image first' });
         }
         if (!walletAddress || typeof walletAddress !== 'string') {
             return res.status(400).json({ error: 'Wallet address required' });
         }
 
-        // Validate base58 address (32-44 chars, valid characters)
         const base58Regex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
         if (!base58Regex.test(walletAddress)) {
             return res.status(400).json({ error: 'Invalid wallet address format' });
         }
 
-        const creatorAddress = walletAddress;
-        const sanitizedPrompt = prompt.trim().substring(0, 500);
+        const gen = pendingGenerations.get(generationId);
+        if (!gen) {
+            return res.status(400).json({ error: 'Generation expired or not found. Please generate again.' });
+        }
 
-        // Ensure guest user record exists
+        const creatorAddress = walletAddress;
         db.getOrCreateUser(creatorAddress);
 
-        console.log(`[GUEST MINT] Generating NFT for ${creatorAddress.substring(0, 12)}... prompt: "${sanitizedPrompt.substring(0, 30)}..."`);
-
-        // 1. Generate image with FLUX.1 schnell (or mock fallback)
-        const imageResult = await aiImage.generateImage(sanitizedPrompt);
-
-        // 2. Upload image to IPFS
         const nftNumber = db.nfts.data.length + 1;
-        const ext = imageResult.fileExtension || 'webp';
-        const filename = `nft-${nftNumber}.${ext}`;
-        const imageUpload = await ipfs.uploadImage(imageResult.imageBuffer, filename);
-
-        // 3. Build metadata
         const nftName = name || `AI Art #${nftNumber}`;
+
         const metadata = {
             name: nftName,
-            description: `Generated from prompt: ${sanitizedPrompt}`,
-            image: imageUpload.url,
+            description: `AI-generated NFT on Xeris`,
+            image: gen.imageUrl,
             attributes: {
-                prompt: sanitizedPrompt,
                 creator: creatorAddress,
                 collection: 'Uncollected',
-                ai_model: imageResult.model || 'flux-schnell',
+                ai_generated: true,
                 created_at: new Date().toISOString(),
                 mint_type: 'guest'
             }
         };
 
-        // 4. Upload metadata to IPFS
         const metadataUpload = await ipfs.uploadMetadata(metadata);
 
-        // 5. Save NFT to database
         const nft = db.createNFT({
             collectionId: null,
             tokenNumber: nftNumber,
             ownerAddress: creatorAddress,
             creatorAddress,
             name: nftName,
-            promptText: sanitizedPrompt,
-            imageCID: imageUpload.cid,
+            promptText: gen.prompt,
+            imageCID: gen.imageCID,
             metadataCID: metadataUpload.cid,
-            imageUrl: imageUpload.gateway,
+            imageUrl: gen.imageGateway,
             metadataUrl: metadataUpload.gateway
         });
+
+        pendingGenerations.delete(generationId);
 
         console.log(`[GUEST MINT] NFT created: ${nft.id} "${nftName}"`);
 
@@ -302,7 +349,7 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
             success: true,
             nft: {
                 ...nft,
-                imageGateway: imageUpload.gateway,
+                imageGateway: gen.imageGateway,
                 metadataGateway: metadataUpload.gateway
             }
         });
@@ -606,7 +653,7 @@ app.get('/api/stats', (req, res) => {
         totalTrades: db.trades.data.length,
         escrowAddress: serverKeypair.address,
         ipfsConfigured: ipfs.isConfigured(),
-        aiModel: aiImage.isConfigured() ? 'flux-schnell' : 'mock',
+        aiConfigured: aiImage.isConfigured(),
         platformFeePercent: PLATFORM_FEE_PERCENT
     });
 });
