@@ -91,10 +91,36 @@ const App = (() => {
                 disconnectWallet();
             });
 
-            dapp.on('accountChanged', (newAddr) => {
+            dapp.on('accountChanged', async (newAddr) => {
                 showToast('Account changed — reconnecting...', 'info');
+                // Clear old auth
+                state.token = null;
+                state.user = null;
                 state.address = newAddr;
+                localStorage.removeItem('nft_token');
                 localStorage.setItem('nft_address', newAddr);
+
+                // Re-authenticate with new address
+                try {
+                    const { challenge } = await api('POST', '/api/auth/challenge', { address: newAddr });
+                    let sig = 'wallet-browser-auth';
+                    try {
+                        const signResult = await dapp.signMessage(challenge);
+                        if (signResult && signResult.signature) {
+                            sig = btoa(String.fromCharCode(...new Uint8Array(signResult.signature)));
+                        } else if (typeof signResult === 'string') {
+                            sig = signResult;
+                        }
+                    } catch (_) {}
+                    const { token, user } = await api('POST', '/api/auth/connect', { address: newAddr, signature: sig });
+                    state.token = token;
+                    state.user = user;
+                    state.connected = true;
+                    localStorage.setItem('nft_token', token);
+                } catch (e) {
+                    console.warn('Re-auth failed on account change:', e.message);
+                    state.connected = false;
+                }
                 updateUI();
                 showView(state.currentView);
             });

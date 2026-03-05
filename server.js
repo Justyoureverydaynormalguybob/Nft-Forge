@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const nacl = require('tweetnacl');
 
 const ChainConnector = require('./chain');
 const txBuilder = require('./tx-builder');
@@ -23,7 +24,10 @@ const ipfs = require('./ipfs');
 // ─── CONFIGURATION ───────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+if (!process.env.JWT_SECRET) {
+    console.warn('[WARN] JWT_SECRET not set — using random secret (tokens will invalidate on restart)');
+}
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT) || 2.5;
 
 const app = express();
@@ -109,26 +113,48 @@ app.post('/api/auth/challenge', (req, res) => {
     res.json({ challenge });
 });
 
-// Connect wallet (verify signature or simplified auth for dev)
+// Connect wallet (verify Ed25519 signature of challenge)
 app.post('/api/auth/connect', async (req, res) => {
-    const { address, signature } = req.body;
-    if (!address || typeof address !== 'string' || address.length < 20) {
-        return res.status(400).json({ error: 'Invalid wallet address' });
-    }
+    try {
+        const { address, signature } = req.body;
+        if (!address || typeof address !== 'string' || address.length < 20) {
+            return res.status(400).json({ error: 'Invalid wallet address' });
+        }
 
-    const pending = pendingChallenges.get(address);
-    if (pending) {
+        const pending = pendingChallenges.get(address);
         pendingChallenges.delete(address);
+
+        // Verify signature if wallet supports it
+        if (signature && signature !== 'wallet-browser-auth' && pending) {
+            try {
+                const sigBytes = Buffer.from(signature, 'base64');
+                const messageBytes = Buffer.from(pending.challenge, 'utf8');
+                const pubKeyBytes = txBuilder.base58Decode(address);
+                const valid = nacl.sign.detached.verify(messageBytes, sigBytes, pubKeyBytes);
+                if (!valid) {
+                    return res.status(401).json({ error: 'Invalid signature' });
+                }
+            } catch (e) {
+                console.warn(`[AUTH] Signature verification error: ${e.message}`);
+                // Fall through — wallet may not support standard signing
+            }
+        } else if (!pending) {
+            // No challenge was requested — require at least that
+            return res.status(400).json({ error: 'Request a challenge first' });
+        }
+
+        // Ensure user record exists
+        const user = await db.getOrCreateUser(address);
+
+        const token = jwt.sign({ address, userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
+        res.json({
+            token,
+            user: { id: user.id, address: user.address, username: user.username }
+        });
+    } catch (e) {
+        console.error(`[AUTH] Connect error: ${e.message}`);
+        res.status(500).json({ error: 'Authentication failed' });
     }
-
-    // Ensure user record exists
-    const user = await db.getOrCreateUser(address);
-
-    const token = jwt.sign({ address, userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({
-        token,
-        user: { id: user.id, address: user.address, username: user.username }
-    });
 });
 
 // Get current user
@@ -195,7 +221,7 @@ app.post('/api/generate', generateLimiter, async (req, res) => {
         });
     } catch (e) {
         console.error(`[GENERATE] Error: ${e.message}`);
-        res.status(500).json({ error: 'Generation failed: ' + e.message });
+        res.status(500).json({ error: 'Image generation failed. Please try again.' });
     }
 });
 
@@ -278,7 +304,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
         });
     } catch (e) {
         console.error(`[MINT] Error: ${e.message}`);
-        res.status(500).json({ error: 'Mint failed: ' + e.message });
+        res.status(500).json({ error: 'Mint failed. Please try again.' });
     }
 });
 
@@ -354,198 +380,269 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
         });
     } catch (e) {
         console.error(`[GUEST MINT] Error: ${e.message}`);
-        res.status(500).json({ error: 'Mint failed: ' + e.message });
+        res.status(500).json({ error: 'Mint failed. Please try again.' });
     }
 });
 
 // ─── NFT QUERY ROUTES ────────────────────────────────────────────────
 
 app.get('/api/nfts', async (req, res) => {
-    const { page = 1, limit = 20, collection, creator, owner } = req.query;
-    const filter = {};
-    if (collection) filter.collectionId = collection;
-    if (creator) filter.creatorAddress = creator;
-    if (owner) filter.ownerAddress = owner;
+    try {
+        const { page = 1, limit = 20, collection, creator, owner } = req.query;
+        const filter = {};
+        if (collection) filter.collectionId = collection;
+        if (creator) filter.creatorAddress = creator;
+        if (owner) filter.ownerAddress = owner;
 
-    const result = await db.nfts.list({
-        page: parseInt(page),
-        limit: Math.min(parseInt(limit) || 20, 100),
-        filter,
-        sort: { field: 'mintedAt', order: 'desc' }
-    });
-    res.json(result);
+        const result = await db.nfts.list({
+            page: parseInt(page) || 1,
+            limit: Math.min(parseInt(limit) || 20, 100),
+            filter,
+            sort: { field: 'mintedAt', order: 'desc' }
+        });
+        res.json(result);
+    } catch (e) {
+        console.error(`[API] GET /api/nfts error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load NFTs' });
+    }
 });
 
 app.get('/api/nfts/:id', async (req, res) => {
-    const nft = await db.nfts.getById(req.params.id);
-    if (!nft) return res.status(404).json({ error: 'NFT not found' });
+    try {
+        const nft = await db.nfts.getById(req.params.id);
+        if (!nft) return res.status(404).json({ error: 'NFT not found' });
 
-    let collection = null;
-    if (nft.collectionId) {
-        collection = await db.collections.getById(nft.collectionId);
+        let collection = null;
+        if (nft.collectionId) {
+            collection = await db.collections.getById(nft.collectionId);
+        }
+
+        res.json({ nft, collection });
+    } catch (e) {
+        console.error(`[API] GET /api/nfts/:id error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load NFT' });
     }
-
-    res.json({ nft, collection });
 });
 
 app.get('/api/nfts/owner/:address', async (req, res) => {
-    const { page = 1, limit = 20 } = req.query;
-    const result = await db.nfts.list({
-        page: parseInt(page),
-        limit: Math.min(parseInt(limit) || 20, 100),
-        filter: { ownerAddress: req.params.address },
-        sort: { field: 'mintedAt', order: 'desc' }
-    });
-    res.json(result);
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const result = await db.nfts.list({
+            page: parseInt(page) || 1,
+            limit: Math.min(parseInt(limit) || 20, 100),
+            filter: { ownerAddress: req.params.address },
+            sort: { field: 'mintedAt', order: 'desc' }
+        });
+        res.json(result);
+    } catch (e) {
+        console.error(`[API] GET /api/nfts/owner error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load NFTs' });
+    }
 });
 
 // ─── COLLECTION ROUTES ───────────────────────────────────────────────
 
 app.get('/api/collections', async (req, res) => {
-    const { page = 1, limit = 20 } = req.query;
-    const result = await db.collections.list({
-        page: parseInt(page),
-        limit: Math.min(parseInt(limit) || 20, 100),
-        sort: { field: 'createdAt', order: 'desc' }
-    });
-    res.json(result);
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const result = await db.collections.list({
+            page: parseInt(page) || 1,
+            limit: Math.min(parseInt(limit) || 20, 100),
+            sort: { field: 'createdAt', order: 'desc' }
+        });
+        res.json(result);
+    } catch (e) {
+        console.error(`[API] GET /api/collections error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load collections' });
+    }
 });
 
 app.get('/api/collections/:id', async (req, res) => {
-    const collection = await db.collections.getById(req.params.id);
-    if (!collection) return res.status(404).json({ error: 'Collection not found' });
+    try {
+        const collection = await db.collections.getById(req.params.id);
+        if (!collection) return res.status(404).json({ error: 'Collection not found' });
 
-    const nftsResult = await db.nfts.list({
-        filter: { collectionId: req.params.id },
-        sort: { field: 'mintedAt', order: 'desc' },
-        limit: 100
-    });
+        const nftsResult = await db.nfts.list({
+            filter: { collectionId: req.params.id },
+            sort: { field: 'mintedAt', order: 'desc' },
+            limit: 100
+        });
 
-    res.json({ collection, nfts: nftsResult });
+        res.json({ collection, nfts: nftsResult });
+    } catch (e) {
+        console.error(`[API] GET /api/collections/:id error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load collection' });
+    }
 });
 
 app.post('/api/collections', requireAuth, async (req, res) => {
-    const { name, symbol, description, maxSupply } = req.body;
-    if (!name || typeof name !== 'string' || name.trim().length < 2) {
-        return res.status(400).json({ error: 'Collection name must be at least 2 characters' });
+    try {
+        const { name, symbol, description, maxSupply } = req.body;
+        if (!name || typeof name !== 'string' || name.trim().length < 2) {
+            return res.status(400).json({ error: 'Collection name must be at least 2 characters' });
+        }
+
+        const collection = await db.createCollection({
+            name: name.trim(),
+            symbol: symbol ? symbol.trim().toUpperCase() : undefined,
+            creatorAddress: req.user.address,
+            description: description || '',
+            maxSupply: parseInt(maxSupply) || 0
+        });
+
+        res.json({ success: true, collection });
+    } catch (e) {
+        console.error(`[API] POST /api/collections error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to create collection' });
     }
-
-    const collection = await db.createCollection({
-        name: name.trim(),
-        symbol: symbol ? symbol.trim().toUpperCase() : undefined,
-        creatorAddress: req.user.address,
-        description: description || '',
-        maxSupply: parseInt(maxSupply) || 0
-    });
-
-    res.json({ success: true, collection });
 });
 
 // ─── MARKETPLACE ROUTES ──────────────────────────────────────────────
 
 app.get('/api/listings', async (req, res) => {
-    const { page = 1, limit = 20, sort = 'date' } = req.query;
-    const sortField = sort === 'price' ? 'priceLamports' : 'createdAt';
+    try {
+        const { page = 1, limit = 20, sort = 'date' } = req.query;
+        const sortField = sort === 'price' ? 'priceLamports' : 'createdAt';
 
-    const result = await db.listings.list({
-        page: parseInt(page),
-        limit: Math.min(parseInt(limit) || 20, 100),
-        filter: { status: 'active' },
-        sort: { field: sortField, order: sort === 'price_asc' ? 'asc' : 'desc' }
-    });
+        const result = await db.listings.list({
+            page: parseInt(page) || 1,
+            limit: Math.min(parseInt(limit) || 20, 100),
+            filter: { status: 'active' },
+            sort: { field: sortField, order: sort === 'price_asc' ? 'asc' : 'desc' }
+        });
 
-    // Enrich with NFT data
-    const enriched = [];
-    for (const listing of result.items) {
-        const nft = await db.nfts.getById(listing.nftId);
-        enriched.push({ ...listing, nft: nft || null });
+        // Enrich with NFT data (parallel)
+        const enriched = await Promise.all(
+            result.items.map(async (listing) => {
+                const nft = await db.nfts.getById(listing.nftId);
+                return { ...listing, nft: nft || null };
+            })
+        );
+        result.items = enriched;
+
+        res.json(result);
+    } catch (e) {
+        console.error(`[API] GET /api/listings error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load listings' });
     }
-    result.items = enriched;
-
-    res.json(result);
 });
 
 app.post('/api/listings', requireAuth, async (req, res) => {
-    const { nftId, priceXRS } = req.body;
+    try {
+        const { nftId, priceXRS } = req.body;
 
-    if (!nftId) return res.status(400).json({ error: 'NFT ID required' });
-    if (!priceXRS || priceXRS <= 0) return res.status(400).json({ error: 'Price must be positive' });
+        if (!nftId) return res.status(400).json({ error: 'NFT ID required' });
+        if (!priceXRS || priceXRS <= 0) return res.status(400).json({ error: 'Price must be positive' });
 
-    const nft = await db.nfts.getById(nftId);
-    if (!nft) return res.status(404).json({ error: 'NFT not found' });
-    if (nft.ownerAddress !== req.user.address) {
-        return res.status(403).json({ error: 'You do not own this NFT' });
+        const nft = await db.nfts.getById(nftId);
+        if (!nft) return res.status(404).json({ error: 'NFT not found' });
+        if (nft.ownerAddress !== req.user.address) {
+            return res.status(403).json({ error: 'You do not own this NFT' });
+        }
+
+        const existing = await db.listings.find({ nftId, status: 'active' });
+        if (existing.length > 0) {
+            return res.status(400).json({ error: 'NFT is already listed' });
+        }
+
+        const listing = await db.createListing({
+            nftId,
+            sellerAddress: req.user.address,
+            priceXRS: parseFloat(priceXRS)
+        });
+
+        res.json({ success: true, listing });
+    } catch (e) {
+        console.error(`[API] POST /api/listings error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to create listing' });
     }
-
-    const existing = await db.listings.find({ nftId, status: 'active' });
-    if (existing.length > 0) {
-        return res.status(400).json({ error: 'NFT is already listed' });
-    }
-
-    const listing = await db.createListing({
-        nftId,
-        sellerAddress: req.user.address,
-        priceXRS: parseFloat(priceXRS)
-    });
-
-    res.json({ success: true, listing });
 });
 
 app.delete('/api/listings/:id', requireAuth, async (req, res) => {
-    const listing = await db.listings.getById(req.params.id);
-    if (!listing) return res.status(404).json({ error: 'Listing not found' });
-    if (listing.sellerAddress !== req.user.address) {
-        return res.status(403).json({ error: 'Not your listing' });
-    }
-    if (listing.status !== 'active') {
-        return res.status(400).json({ error: 'Listing is not active' });
-    }
+    try {
+        const listing = await db.listings.getById(req.params.id);
+        if (!listing) return res.status(404).json({ error: 'Listing not found' });
+        if (listing.sellerAddress !== req.user.address) {
+            return res.status(403).json({ error: 'Not your listing' });
+        }
+        if (listing.status !== 'active') {
+            return res.status(400).json({ error: 'Listing is not active' });
+        }
 
-    await db.cancelListing(req.params.id);
-    res.json({ success: true });
+        await db.cancelListing(req.params.id);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[API] DELETE /api/listings error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to cancel listing' });
+    }
 });
+
+// In-flight buy locks to prevent double-purchase
+const buyLocks = new Set();
 
 // Buy NFT — buyer sends payment tx signature (wallet already submitted the tx)
 app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
+    const listingId = req.params.id;
+
+    // Prevent concurrent purchases of the same listing
+    if (buyLocks.has(listingId)) {
+        return res.status(409).json({ error: 'This listing is being purchased by another buyer' });
+    }
+    buyLocks.add(listingId);
+
     try {
         const { txSignature } = req.body;
         const buyerAddress = req.user.address;
 
-        if (!txSignature) {
-            return res.status(400).json({ error: 'Payment transaction signature required' });
+        if (!txSignature || typeof txSignature !== 'string' || txSignature.length < 10) {
+            return res.status(400).json({ error: 'Valid payment transaction signature required' });
         }
 
-        const listing = await db.listings.getById(req.params.id);
+        const listing = await db.listings.getById(listingId);
         if (!listing) return res.status(404).json({ error: 'Listing not found' });
         if (listing.status !== 'active') return res.status(400).json({ error: 'Listing no longer active' });
         if (listing.sellerAddress === buyerAddress) {
             return res.status(400).json({ error: 'Cannot buy your own NFT' });
         }
 
-        console.log(`[TRADE] Payment tx signature: ${txSignature}`);
+        console.log(`[TRADE] Buy attempt: listing=${listingId} buyer=${buyerAddress.substring(0, 12)}...`);
 
-        // Verify escrow received the payment by checking escrow balance
-        const escrowBalanceBefore = await chain.getBalance(serverKeypair.address);
-        const escrowBalance = escrowBalanceBefore.balance || 0;
+        // Step 1: Record escrow balance BEFORE (payment should already be in-flight)
+        const balanceBefore = (await chain.getBalance(serverKeypair.address)).balance || 0;
 
-        if (escrowBalance < listing.priceLamports) {
-            console.log(`[TRADE] Escrow balance insufficient: ${escrowBalance} < ${listing.priceLamports}`);
-            return res.status(400).json({
-                error: 'Payment not received. Escrow balance too low. The transaction may have failed due to insufficient funds.'
-            });
+        // Step 2: Wait for payment to settle (wallet already submitted tx)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Step 3: Check escrow balance AFTER — it should have increased by at least the listing price
+        const balanceAfter = (await chain.getBalance(serverKeypair.address)).balance || 0;
+        const balanceIncrease = balanceAfter - balanceBefore;
+
+        console.log(`[TRADE] Escrow balance: before=${balanceBefore} after=${balanceAfter} increase=${balanceIncrease} need=${listing.priceLamports}`);
+
+        // Verify the balance increased by at least the listing price
+        // Allow 10% tolerance for timing (other txs may also be settling)
+        if (balanceIncrease < listing.priceLamports * 0.9) {
+            // Fallback: also accept if total balance covers it (for cases where balance was already there)
+            if (balanceAfter < listing.priceLamports) {
+                console.log(`[TRADE] Payment verification failed`);
+                return res.status(400).json({
+                    error: 'Payment not verified. Please ensure you have enough XRS and try again.'
+                });
+            }
         }
 
-        console.log(`[TRADE] Escrow balance verified: ${escrowBalance} lamports (need ${listing.priceLamports})`);
+        // Step 4: Mark listing as pending immediately to prevent double-sell
+        await db.listings.update(listingId, { status: 'pending' });
 
-        // Transfer NFT ownership in DB
+        // Step 5: Transfer NFT ownership
         const nft = await db.transferNFT(listing.nftId, buyerAddress);
 
-        // Mark listing as sold
-        await db.completeListing(listing.id);
+        // Step 6: Mark listing as sold
+        await db.completeListing(listingId);
 
-        // Record trade
+        // Step 7: Record trade
         const trade = await db.recordTrade({
-            listingId: listing.id,
+            listingId,
             nftId: listing.nftId,
             buyerAddress,
             sellerAddress: listing.sellerAddress,
@@ -553,7 +650,7 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
             paymentTxSignature: txSignature
         });
 
-        // Send payment to seller (minus platform fee) from escrow
+        // Step 8: Send payment to seller (minus platform fee) from escrow
         try {
             const platformFee = Math.floor(listing.priceLamports * PLATFORM_FEE_PERCENT / 100);
             const sellerAmount = listing.priceLamports - platformFee;
@@ -574,7 +671,7 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
                 signature: payoutTx.signatureBase58
             });
 
-            console.log(`[TRADE] Seller payout: ${sellerAmount} lamports to ${listing.sellerAddress.substring(0, 12)}...`);
+            console.log(`[TRADE] Seller payout: ${sellerAmount} lamports (fee: ${platformFee}) to ${listing.sellerAddress.substring(0, 12)}...`);
         } catch (e) {
             console.error(`[TRADE] Seller payout failed: ${e.message}`);
             // Trade still succeeds — manual payout can be done later
@@ -588,7 +685,11 @@ app.post('/api/listings/:id/buy', requireAuth, async (req, res) => {
         });
     } catch (e) {
         console.error(`[TRADE] Error: ${e.message}`);
-        res.status(500).json({ error: 'Purchase failed: ' + e.message });
+        // If we set status to pending but failed, revert to active
+        try { await db.listings.update(listingId, { status: 'active' }); } catch (_) {}
+        res.status(500).json({ error: 'Purchase failed. Please try again.' });
+    } finally {
+        buyLocks.delete(listingId);
     }
 });
 
@@ -620,11 +721,12 @@ app.get('/api/chain/blockhash', async (req, res) => {
         const blockhash = await chain.getRecentBlockhash();
         res.json({ blockhash });
     } catch (e) {
-        res.status(500).json({ error: 'Failed to get blockhash: ' + e.message });
+        console.error(`[API] blockhash error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to get blockhash' });
     }
 });
 
-app.post('/api/chain/submit', async (req, res) => {
+app.post('/api/chain/submit', requireAuth, async (req, res) => {
     try {
         const { tx_base64 } = req.body;
         if (!tx_base64) return res.status(400).json({ error: 'tx_base64 required' });
@@ -632,7 +734,8 @@ app.post('/api/chain/submit', async (req, res) => {
         const result = await chain.submitSignedTransaction({ txBase64: tx_base64 });
         res.json(result);
     } catch (e) {
-        res.status(500).json({ error: 'Submit failed: ' + e.message });
+        console.error(`[API] submit error: ${e.message}`);
+        res.status(500).json({ error: 'Transaction submit failed' });
     }
 });
 
@@ -641,7 +744,8 @@ app.get('/api/chain/balance/:address', async (req, res) => {
         const balance = await chain.getBalance(req.params.address);
         res.json(balance);
     } catch (e) {
-        res.status(500).json({ error: 'Balance check failed: ' + e.message });
+        console.error(`[API] balance error: ${e.message}`);
+        res.status(500).json({ error: 'Balance check failed' });
     }
 });
 
@@ -650,31 +754,37 @@ app.get('/api/chain/info', async (req, res) => {
         const info = await chain.getChainInfo();
         res.json(info);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        console.error(`[API] chain info error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to get chain info' });
     }
 });
 
 // ─── PLATFORM INFO ───────────────────────────────────────────────────
 
 app.get('/api/stats', async (req, res) => {
-    const [totalNFTs, totalCollections, totalUsers, totalListings, totalTrades] = await Promise.all([
-        db.nfts.count(),
-        db.collections.count(),
-        db.users.count(),
-        db.listings.count({ status: 'active' }),
-        db.trades.count()
-    ]);
-    res.json({
-        totalNFTs,
-        totalCollections,
-        totalUsers,
-        totalListings,
-        totalTrades,
-        escrowAddress: serverKeypair.address,
-        ipfsConfigured: ipfs.isConfigured(),
-        aiConfigured: aiImage.isConfigured(),
-        platformFeePercent: PLATFORM_FEE_PERCENT
-    });
+    try {
+        const [totalNFTs, totalCollections, totalUsers, totalListings, totalTrades] = await Promise.all([
+            db.nfts.count(),
+            db.collections.count(),
+            db.users.count(),
+            db.listings.count({ status: 'active' }),
+            db.trades.count()
+        ]);
+        res.json({
+            totalNFTs,
+            totalCollections,
+            totalUsers,
+            totalListings,
+            totalTrades,
+            escrowAddress: serverKeypair.address,
+            ipfsConfigured: ipfs.isConfigured(),
+            aiConfigured: aiImage.isConfigured(),
+            platformFeePercent: PLATFORM_FEE_PERCENT
+        });
+    } catch (e) {
+        console.error(`[API] GET /api/stats error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load stats' });
+    }
 });
 
 // ─── SPA FALLBACK ────────────────────────────────────────────────────

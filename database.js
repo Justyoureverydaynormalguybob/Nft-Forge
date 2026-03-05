@@ -15,7 +15,13 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 const USE_PG = !!process.env.DATABASE_URL;
-console.log(`[DB] DATABASE_URL ${USE_PG ? 'found (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NOT SET — using JSON files'}`);
+if (USE_PG) {
+    // Log host only — never log credentials
+    const dbHost = process.env.DATABASE_URL.replace(/^.*@/, '').replace(/\/.*$/, '');
+    console.log(`[DB] DATABASE_URL found (host: ${dbHost})`);
+} else {
+    console.log('[DB] DATABASE_URL NOT SET — using JSON files');
+}
 
 // ─── POSTGRES STORE ─────────────────────────────────────────────────
 
@@ -127,8 +133,11 @@ class PgStore {
 
     _toRow(record) {
         const row = {};
+        const allowedCols = new Set(Object.values(this.fieldMap));
         for (const [key, val] of Object.entries(record)) {
             const col = this.fieldMap[key] || key;
+            // Only allow known column names — prevents SQL injection via keys
+            if (!allowedCols.has(col)) continue;
             row[col] = val;
         }
         return row;
@@ -163,11 +172,13 @@ class PgStore {
     }
 
     async find(filter = {}) {
+        const allowedCols = new Set(Object.values(this.fieldMap));
         const conditions = [];
         const vals = [];
         let i = 1;
         for (const [key, value] of Object.entries(filter)) {
             const col = this.fieldMap[key] || key;
+            if (!allowedCols.has(col)) continue;
             conditions.push(`${col} = $${i++}`);
             vals.push(value);
         }
@@ -177,11 +188,13 @@ class PgStore {
     }
 
     async update(id, updates) {
+        const allowedCols = new Set(Object.values(this.fieldMap));
         const sets = [];
         const vals = [];
         let i = 1;
         for (const [key, value] of Object.entries(updates)) {
             const col = this.fieldMap[key] || key;
+            if (!allowedCols.has(col)) continue;
             sets.push(`${col} = $${i++}`);
             vals.push(value);
         }
@@ -199,16 +212,19 @@ class PgStore {
     }
 
     async list({ page = 1, limit = 20, filter = {}, sort = null } = {}) {
+        const allowedCols = new Set(Object.values(this.fieldMap));
         const conditions = [];
         const vals = [];
         let i = 1;
         for (const [key, value] of Object.entries(filter)) {
             const col = this.fieldMap[key] || key;
+            if (!allowedCols.has(col)) continue;
             conditions.push(`${col} = $${i++}`);
             vals.push(value);
         }
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const orderCol = sort ? (this.fieldMap[sort.field] || sort.field) : 'created_at';
+        const rawOrderCol = sort ? (this.fieldMap[sort.field] || sort.field) : 'created_at';
+        const orderCol = allowedCols.has(rawOrderCol) ? rawOrderCol : 'created_at';
         const orderDir = sort?.order === 'asc' ? 'ASC' : 'DESC';
         const offset = (page - 1) * limit;
 
@@ -225,11 +241,13 @@ class PgStore {
     }
 
     async count(filter = {}) {
+        const allowedCols = new Set(Object.values(this.fieldMap));
         const conditions = [];
         const vals = [];
         let i = 1;
         for (const [key, value] of Object.entries(filter)) {
             const col = this.fieldMap[key] || key;
+            if (!allowedCols.has(col)) continue;
             conditions.push(`${col} = $${i++}`);
             vals.push(value);
         }

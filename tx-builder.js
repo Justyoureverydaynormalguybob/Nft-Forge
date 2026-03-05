@@ -302,6 +302,8 @@ module.exports = {
     encodeCompactU16,
     writeU64LE,
     writeU32LE,
+    base58Decode,
+    base58Encode,
     LAMPORTS_PER_XRS,
     CERTIFICATION_FEE_XRS,
     CERTIFICATION_FEE_LAMPORTS
