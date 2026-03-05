@@ -363,8 +363,15 @@ class XerisDApp {
 
     async callContract(contractId, method, args) {
         this._requireConnected();
-        const argsJson = JSON.stringify(args);
-        const argsBytes = new TextEncoder().encode(argsJson);
+        // If args is already a Uint8Array, use raw bytes directly (e.g. swap's 16-byte buffer).
+        // Otherwise JSON-stringify for backwards compatibility with other contract calls.
+        let argsBytes;
+        if (args instanceof Uint8Array) {
+            argsBytes = args;
+        } else {
+            const argsJson = JSON.stringify(args);
+            argsBytes = new TextEncoder().encode(argsJson);
+        }
         const instrData = XerisTx.encodeInstruction(4, [
             XerisTx.encodeBincodeString(contractId),
             XerisTx.encodeBincodeString(method),
@@ -374,11 +381,16 @@ class XerisDApp {
     }
 
     async swapTokens(poolId, tokenIn, amountIn, minAmountOut) {
-        return this.callContract(poolId, 'swap', {
-            token_in: tokenIn,
-            amount_in: amountIn,
-            min_amount_out: minAmountOut
-        });
+        // DEX swap contract requires 16-byte raw buffer: input_amount (u64 LE) + min_output (u64 LE)
+        const buf = new Uint8Array(16);
+        const dv = new DataView(buf.buffer);
+        // Write input_amount as u64 LE (split into low/high 32-bit)
+        dv.setUint32(0, amountIn & 0xFFFFFFFF, true);
+        dv.setUint32(4, Math.floor(amountIn / 0x100000000) & 0xFFFFFFFF, true);
+        // Write min_output as u64 LE
+        dv.setUint32(8, minAmountOut & 0xFFFFFFFF, true);
+        dv.setUint32(12, Math.floor(minAmountOut / 0x100000000) & 0xFFFFFFFF, true);
+        return this.callContract(poolId, 'swap', buf);
     }
 
     async buyOnLaunchpad(launchpadId, xrsAmountLamports, minTokensOut) {
