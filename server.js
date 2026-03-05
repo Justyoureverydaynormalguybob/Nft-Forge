@@ -40,7 +40,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdnjs.cloudflare.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "https://gateway.pinata.cloud", "https://images.unsplash.com", "https://replicate.delivery", "https://*.replicate.delivery", "blob:"],
@@ -65,6 +65,12 @@ const mintLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 5,
     message: { error: 'Too many mint requests, please wait' }
+});
+
+const guestMintLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 2,
+    message: { error: 'Too many guest mint requests, please wait' }
 });
 
 // ─── AUTH MIDDLEWARE ──────────────────────────────────────────────────
@@ -262,6 +268,136 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
         });
     } catch (e) {
         console.error(`[MINT] Error: ${e.message}`);
+        res.status(500).json({ error: 'Mint failed: ' + e.message });
+    }
+});
+
+// ─── GUEST MINT (no wallet extension required) ──────────────────────
+
+app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
+    try {
+        const { prompt, walletAddress, name } = req.body;
+
+        if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
+            return res.status(400).json({ error: 'Prompt must be at least 3 characters' });
+        }
+        if (!walletAddress || typeof walletAddress !== 'string') {
+            return res.status(400).json({ error: 'Wallet address required' });
+        }
+
+        // Validate base58 address (32-44 chars, valid characters)
+        const base58Regex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+        if (!base58Regex.test(walletAddress)) {
+            return res.status(400).json({ error: 'Invalid wallet address format' });
+        }
+
+        const creatorAddress = walletAddress;
+        const sanitizedPrompt = prompt.trim().substring(0, 500);
+
+        // Ensure guest user record exists
+        db.getOrCreateUser(creatorAddress);
+
+        console.log(`[GUEST MINT] Generating NFT for ${creatorAddress.substring(0, 12)}... prompt: "${sanitizedPrompt.substring(0, 30)}..."`);
+
+        // 1. Generate image with FLUX.1 schnell (or mock fallback)
+        const imageResult = await aiImage.generateImage(sanitizedPrompt);
+
+        // 2. Upload image to IPFS
+        const nftNumber = db.nfts.data.length + 1;
+        const ext = imageResult.fileExtension || 'webp';
+        const filename = `nft-${nftNumber}.${ext}`;
+        const imageUpload = await ipfs.uploadImage(imageResult.imageBuffer, filename);
+
+        // 3. Build metadata
+        const nftName = name || `AI Art #${nftNumber}`;
+        const metadata = {
+            name: nftName,
+            description: `Generated from prompt: ${sanitizedPrompt}`,
+            image: imageUpload.url,
+            attributes: {
+                prompt: sanitizedPrompt,
+                creator: creatorAddress,
+                collection: 'Uncollected',
+                ai_model: imageResult.model || 'flux-schnell',
+                created_at: new Date().toISOString(),
+                mint_type: 'guest'
+            },
+            xeris_proof: {}
+        };
+
+        // 4. Upload metadata to IPFS
+        const metadataUpload = await ipfs.uploadMetadata(metadata);
+
+        // 5. Build proof hash
+        const proofHash = crypto.createHash('sha256')
+            .update(imageUpload.cid + metadataUpload.cid + creatorAddress + Date.now().toString())
+            .digest('hex');
+
+        // 6. Record on-chain proof via NativeTransfer
+        let mintTxSignature = '';
+        let certAddress = '';
+        let blockSlot = null;
+
+        try {
+            const blockhash = await chain.getRecentBlockhash();
+            const certTx = txBuilder.buildCertificationTx(proofHash, blockhash, serverKeypair);
+            certAddress = certTx.certAddress;
+
+            const submitResult = await chain.submitSignedTransaction({
+                txBase64: certTx.base64,
+                signature: certTx.signatureBase58
+            });
+
+            if (submitResult.success) {
+                mintTxSignature = certTx.signatureBase58;
+                blockSlot = submitResult.blockNumber;
+                console.log(`[GUEST MINT] On-chain proof recorded: ${mintTxSignature.substring(0, 16)}... slot ${blockSlot}`);
+            } else {
+                console.log('[GUEST MINT] On-chain proof failed, continuing with off-chain only');
+            }
+        } catch (e) {
+            console.error(`[GUEST MINT] Chain proof error: ${e.message}`);
+        }
+
+        // Update metadata with proof info
+        metadata.xeris_proof = {
+            cert_address: certAddress,
+            tx_signature: mintTxSignature,
+            block_slot: blockSlot,
+            proof_hash: proofHash
+        };
+
+        // 7. Save NFT to database
+        const nft = db.createNFT({
+            collectionId: null,
+            tokenNumber: nftNumber,
+            ownerAddress: creatorAddress,
+            creatorAddress,
+            name: nftName,
+            promptText: sanitizedPrompt,
+            imageCID: imageUpload.cid,
+            metadataCID: metadataUpload.cid,
+            imageUrl: imageUpload.gateway,
+            metadataUrl: metadataUpload.gateway,
+            mintTxSignature,
+            certAddress,
+            proofHash
+        });
+
+        console.log(`[GUEST MINT] NFT created: ${nft.id} "${nftName}"`);
+
+        res.json({
+            success: true,
+            nft: {
+                ...nft,
+                imageGateway: imageUpload.gateway,
+                metadataGateway: metadataUpload.gateway,
+                onChain: !!mintTxSignature,
+                blockSlot
+            }
+        });
+    } catch (e) {
+        console.error(`[GUEST MINT] Error: ${e.message}`);
         res.status(500).json({ error: 'Mint failed: ' + e.message });
     }
 });

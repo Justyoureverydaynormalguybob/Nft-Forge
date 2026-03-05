@@ -97,10 +97,20 @@
                         On-chain proof
                     </div>
                 </div>
-                <button id="mint-btn" class="btn btn-primary btn-mint" onclick="App.mintNFT()">
-                    <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
-                    Mint NFT
-                </button>
+                <div id="mint-buttons" class="mint-buttons">
+                    <button id="mint-btn" class="btn btn-primary btn-mint" onclick="App.mintNFT()">
+                        <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
+                        Mint NFT
+                    </button>
+                    <div id="quick-mint-section" class="quick-mint-section">
+                        <div class="mint-divider"><span>or</span></div>
+                        <button id="quick-mint-btn" class="btn btn-mint btn-quick-mint" onclick="App.guestMint()">
+                            <i data-lucide="zap" style="width:16px;height:16px;"></i>
+                            Quick Mint — No Wallet Needed
+                        </button>
+                        <p class="quick-mint-hint">A new wallet will be created for you. Save your seed phrase to access your NFTs later.</p>
+                    </div>
+                </div>
                 <div id="mint-preview"></div>
             </div>
         </div>
@@ -134,6 +144,43 @@
         </div>
     </div>
 
+    <!-- Seed Phrase Modal -->
+    <div id="seed-modal" class="modal" onclick="if(event.target===this)App.closeSeedModal()">
+        <div class="modal-inner seed-modal-inner">
+            <button class="modal-close" onclick="App.closeSeedModal()">
+                <i data-lucide="x" style="width:16px;height:16px;"></i>
+            </button>
+            <div class="seed-modal-content">
+                <div class="seed-modal-header">
+                    <div class="seed-modal-icon">
+                        <i data-lucide="shield-alert" style="width:28px;height:28px;"></i>
+                    </div>
+                    <h2>Save Your Seed Phrase</h2>
+                    <p>This is the ONLY way to access your NFTs. Write these 12 words down and keep them safe.</p>
+                </div>
+                <div class="seed-warning">
+                    <i data-lucide="alert-triangle" style="width:18px;height:18px;flex-shrink:0;"></i>
+                    <div>
+                        <strong>Do not share these words with anyone!</strong>
+                        Anyone with your seed phrase can access your wallet and NFTs. Store it offline in a secure location.
+                    </div>
+                </div>
+                <div id="seed-word-grid" class="seed-word-grid"></div>
+                <div class="seed-actions">
+                    <button class="btn btn-secondary" onclick="App.copySeedPhrase()">
+                        <i data-lucide="copy" style="width:14px;height:14px;"></i>
+                        Copy Seed Phrase
+                    </button>
+                    <button class="btn btn-primary" onclick="App.closeSeedModal()">
+                        <i data-lucide="check" style="width:14px;height:14px;"></i>
+                        I've Saved My Seed Phrase
+                    </button>
+                </div>
+                <div id="seed-nft-preview" class="seed-nft-preview"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
@@ -158,8 +205,11 @@
         </div>
     </footer>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl-fast.min.js"></script>
     <script src="/js/xeris-tx.js"></script>
     <script src="/js/xeris-sdk.js"></script>
+    <script src="/js/bip39-wordlist.js"></script>
+    <script src="/js/xeris-keygen.js"></script>
     <script src="/js/app.js"></script>
     <script>lucide.createIcons();</script>
 </body>

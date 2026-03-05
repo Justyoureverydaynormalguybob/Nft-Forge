@@ -159,6 +159,7 @@ const App = (() => {
         if (navTab) navTab.classList.add('active');
 
         if (view === 'gallery') loadGallery();
+        else if (view === 'mint') updateMintButtons();
         else if (view === 'marketplace') loadMarketplace();
         else if (view === 'my-nfts') loadMyNFTs();
     }
@@ -317,6 +318,115 @@ const App = (() => {
             renderIcons();
             setStatus('');
         }
+    }
+
+    // ─── GUEST MINT (no wallet extension) ──────────────────────
+
+    let _guestSeedPhrase = null;
+
+    async function guestMint() {
+        const promptInput = document.getElementById('mint-prompt');
+        const nameInput = document.getElementById('mint-name');
+        const prompt = promptInput.value.trim();
+        const name = nameInput ? nameInput.value.trim() : '';
+
+        if (prompt.length < 3) {
+            showToast('Prompt must be at least 3 characters', 'error');
+            return;
+        }
+
+        const quickBtn = document.getElementById('quick-mint-btn');
+        quickBtn.disabled = true;
+        quickBtn.innerHTML = '<span class="spinner"></span> Creating wallet & minting...';
+        setStatus('Generating browser wallet...');
+
+        try {
+            // 1. Generate wallet client-side
+            const wallet = await XerisKeygen.createWallet();
+            setStatus('Generating AI image & minting NFT...');
+
+            // 2. Mint via guest endpoint
+            const data = await api('POST', '/api/mint/guest', {
+                prompt,
+                walletAddress: wallet.address,
+                name: name || undefined
+            });
+
+            showToast('NFT minted successfully!', 'success');
+
+            // 3. Show mint result preview
+            const preview = document.getElementById('mint-preview');
+            if (preview) {
+                preview.innerHTML = `
+                <div class="mint-result">
+                    <img src="${escapeHtml(data.nft.imageGateway || data.nft.imageUrl)}" alt="${escapeHtml(data.nft.name)}"/>
+                    <h3>${escapeHtml(data.nft.name)}</h3>
+                    <p>${data.nft.onChain
+                        ? '<i data-lucide="shield-check" style="width:14px;height:14px;color:#10b981;"></i> On-chain proof recorded!'
+                        : '<i data-lucide="shield-off" style="width:14px;height:14px;color:#f59e0b;"></i> Minted (off-chain)'}</p>
+                    <p style="font-size:12px;color:var(--text-muted);">Owner: ${shortAddr(wallet.address)}</p>
+                    <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">
+                        <i data-lucide="eye" style="width:14px;height:14px;"></i> View Details
+                    </button>
+                </div>`;
+                renderIcons();
+            }
+
+            // 4. Show seed phrase modal
+            showSeedPhrase(wallet.mnemonic, data.nft, wallet.address);
+
+            promptInput.value = '';
+            if (nameInput) nameInput.value = '';
+            updateCharCount();
+        } catch (e) {
+            showToast('Guest mint failed: ' + e.message, 'error');
+        } finally {
+            quickBtn.disabled = false;
+            quickBtn.innerHTML = '<i data-lucide="zap" style="width:16px;height:16px;"></i> Quick Mint — No Wallet Needed';
+            renderIcons();
+            setStatus('');
+        }
+    }
+
+    function showSeedPhrase(mnemonic, nft, address) {
+        _guestSeedPhrase = mnemonic;
+
+        const words = mnemonic.split(' ');
+        const grid = document.getElementById('seed-word-grid');
+        grid.innerHTML = words.map((word, i) =>
+            `<div class="seed-word">
+                <span class="seed-word-num">${i + 1}.</span>
+                <span class="seed-word-text">${escapeHtml(word)}</span>
+            </div>`
+        ).join('');
+
+        const preview = document.getElementById('seed-nft-preview');
+        if (nft) {
+            preview.innerHTML = `
+                <img src="${escapeHtml(nft.imageGateway || nft.imageUrl)}" alt="${escapeHtml(nft.name)}"/>
+                <div class="seed-nft-name">${escapeHtml(nft.name)}</div>
+                <div class="seed-nft-addr">Wallet: ${address || 'unknown'}</div>
+                <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Import your seed phrase into <strong>Xeris Command Center</strong> to manage your NFTs.</p>`;
+        }
+
+        document.getElementById('seed-modal').classList.add('active');
+        renderIcons();
+    }
+
+    async function copySeedPhrase() {
+        if (!_guestSeedPhrase) return;
+        try {
+            await navigator.clipboard.writeText(_guestSeedPhrase);
+            showToast('Seed phrase copied to clipboard', 'success');
+        } catch (e) {
+            // Fallback: select text
+            showToast('Copy failed — please write down the words manually', 'error');
+        }
+    }
+
+    function closeSeedModal() {
+        document.getElementById('seed-modal').classList.remove('active');
+        _guestSeedPhrase = null;
     }
 
     // ─── MARKETPLACE ─────────────────────────────────────────────────
@@ -516,6 +626,22 @@ const App = (() => {
             userInfo.classList.add('hidden');
             authActions.forEach(el => el.classList.add('hidden'));
         }
+
+        updateMintButtons();
+    }
+
+    function updateMintButtons() {
+        const mintBtn = document.getElementById('mint-btn');
+        const quickSection = document.getElementById('quick-mint-section');
+        if (!mintBtn || !quickSection) return;
+
+        if (state.connected) {
+            mintBtn.classList.remove('hidden');
+            quickSection.classList.add('hidden');
+        } else {
+            mintBtn.classList.add('hidden');
+            quickSection.classList.remove('hidden');
+        }
     }
 
     function shortAddr(addr) {
@@ -569,9 +695,12 @@ const App = (() => {
             tab.addEventListener('click', () => showView(tab.dataset.view));
         });
 
-        // Escape closes modal
+        // Escape closes modals
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') {
+                closeModal();
+                closeSeedModal();
+            }
         });
 
         // Character counter for prompt
@@ -620,6 +749,10 @@ const App = (() => {
         disconnectWallet,
         showView,
         mintNFT,
+        guestMint,
+        showSeedPhrase,
+        copySeedPhrase,
+        closeSeedModal,
         showNFTDetail,
         closeModal,
         showListForm,
