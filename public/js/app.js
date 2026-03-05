@@ -280,7 +280,7 @@ const App = (() => {
                     <div><i data-lucide="user" style="width:13px;height:13px;"></i> <strong>Owner:</strong> ${shortAddr(nft.ownerAddress)}</div>
                     ${collection ? `<div><i data-lucide="folder" style="width:13px;height:13px;"></i> <strong>Collection:</strong> ${escapeHtml(collection.name)}</div>` : ''}
                     <div><i data-lucide="calendar" style="width:13px;height:13px;"></i> <strong>Minted:</strong> ${new Date(nft.mintedAt).toLocaleDateString()}</div>
-                    ${nft.mintTxSignature ? `<div><i data-lucide="hash" style="width:13px;height:13px;"></i> <strong>TX:</strong> <a href="https://xeris-explorer.vercel.app/" target="_blank">${nft.mintTxSignature.substring(0, 16)}...</a></div>` : ''}
+                    ${nft.mintTxSignature ? `<div><i data-lucide="hash" style="width:13px;height:13px;"></i> <strong>TX:</strong> <a href="https://explorer.xerisweb.com/" target="_blank">${nft.mintTxSignature.substring(0, 16)}...</a></div>` : ''}
                     ${nft.certAddress ? `<div><i data-lucide="file-check" style="width:13px;height:13px;"></i> <strong>Cert:</strong> ${shortAddr(nft.certAddress)}</div>` : ''}
                 </div>
                 <div class="detail-actions">
