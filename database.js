@@ -15,6 +15,7 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 const USE_PG = !!process.env.DATABASE_URL;
+console.log(`[DB] DATABASE_URL ${USE_PG ? 'found (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NOT SET — using JSON files'}`);
 
 // ─── POSTGRES STORE ─────────────────────────────────────────────────
 
@@ -32,15 +33,26 @@ function getPool() {
 
 async function initPostgres() {
     const db = getPool();
-    await db.query(`
-        CREATE TABLE IF NOT EXISTS users (
+
+    // Test connection first
+    try {
+        const result = await db.query('SELECT NOW()');
+        console.log('[DB] PostgreSQL connected at', result.rows[0].now);
+    } catch (e) {
+        console.error('[DB] PostgreSQL connection FAILED:', e.message);
+        throw e;
+    }
+
+    // Run each CREATE TABLE separately (some PG providers reject multi-statement)
+    const statements = [
+        `CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
             address TEXT UNIQUE NOT NULL,
             username TEXT,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             data JSONB DEFAULT '{}'
-        );
-        CREATE TABLE IF NOT EXISTS collections (
+        )`,
+        `CREATE TABLE IF NOT EXISTS collections (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             symbol TEXT,
@@ -51,8 +63,8 @@ async function initPostgres() {
             mint_count INT DEFAULT 0,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             data JSONB DEFAULT '{}'
-        );
-        CREATE TABLE IF NOT EXISTS nfts (
+        )`,
+        `CREATE TABLE IF NOT EXISTS nfts (
             id TEXT PRIMARY KEY,
             collection_id TEXT,
             token_number INT,
@@ -66,8 +78,8 @@ async function initPostgres() {
             metadata_url TEXT DEFAULT '',
             minted_at TIMESTAMPTZ DEFAULT NOW(),
             data JSONB DEFAULT '{}'
-        );
-        CREATE TABLE IF NOT EXISTS listings (
+        )`,
+        `CREATE TABLE IF NOT EXISTS listings (
             id TEXT PRIMARY KEY,
             nft_id TEXT NOT NULL,
             seller_address TEXT NOT NULL,
@@ -76,8 +88,8 @@ async function initPostgres() {
             status TEXT DEFAULT 'active',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             data JSONB DEFAULT '{}'
-        );
-        CREATE TABLE IF NOT EXISTS trades (
+        )`,
+        `CREATE TABLE IF NOT EXISTS trades (
             id TEXT PRIMARY KEY,
             listing_id TEXT,
             nft_id TEXT NOT NULL,
@@ -87,12 +99,17 @@ async function initPostgres() {
             payment_tx_signature TEXT DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             data JSONB DEFAULT '{}'
-        );
-        CREATE INDEX IF NOT EXISTS idx_nfts_owner ON nfts(owner_address);
-        CREATE INDEX IF NOT EXISTS idx_nfts_creator ON nfts(creator_address);
-        CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
-        CREATE INDEX IF NOT EXISTS idx_users_address ON users(address);
-    `);
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_nfts_owner ON nfts(owner_address)`,
+        `CREATE INDEX IF NOT EXISTS idx_nfts_creator ON nfts(creator_address)`,
+        `CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status)`,
+        `CREATE INDEX IF NOT EXISTS idx_users_address ON users(address)`
+    ];
+
+    for (const sql of statements) {
+        await db.query(sql);
+    }
+
     console.log('[DB] PostgreSQL tables initialized');
 }
 
