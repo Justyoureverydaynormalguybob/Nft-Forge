@@ -5,6 +5,8 @@
 // Mock contract layer with on-chain proofs.
 // ============================================
 
+require('dotenv').config();
+
 const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -16,7 +18,7 @@ const fs = require('fs');
 const ChainConnector = require('./chain');
 const txBuilder = require('./tx-builder');
 const db = require('./database');
-const mockAI = require('./mock-ai');
+const aiImage = require('./ai-image');
 const ipfs = require('./ipfs');
 
 // ─── CONFIGURATION ───────────────────────────────────────────────────
@@ -38,11 +40,11 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            imgSrc: ["'self'", "data:", "https://gateway.pinata.cloud", "blob:"],
-            connectSrc: ["'self'"]
+            imgSrc: ["'self'", "data:", "https://gateway.pinata.cloud", "https://images.unsplash.com", "https://replicate.delivery", "https://*.replicate.delivery", "blob:"],
+            connectSrc: ["'self'", "https://api.replicate.com"]
         }
     }
 }));
@@ -157,12 +159,13 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
 
         console.log(`[MINT] Generating NFT for ${creatorAddress.substring(0, 12)}... prompt: "${sanitizedPrompt.substring(0, 30)}..."`);
 
-        // 1. Generate image
-        const imageResult = mockAI.generateImage(sanitizedPrompt);
+        // 1. Generate image with FLUX.1 schnell (or mock fallback)
+        const imageResult = await aiImage.generateImage(sanitizedPrompt);
 
         // 2. Upload image to IPFS
         const nftNumber = db.nfts.data.length + 1;
-        const filename = `nft-${nftNumber}.svg`;
+        const ext = imageResult.fileExtension || 'webp';
+        const filename = `nft-${nftNumber}.${ext}`;
         const imageUpload = await ipfs.uploadImage(imageResult.imageBuffer, filename);
 
         // 3. Build metadata
@@ -175,6 +178,7 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
                 prompt: sanitizedPrompt,
                 creator: creatorAddress,
                 collection: collection ? collection.name : 'Uncollected',
+                ai_model: imageResult.model || 'flux-schnell',
                 created_at: new Date().toISOString()
             },
             xeris_proof: {}
@@ -592,6 +596,7 @@ app.get('/api/stats', (req, res) => {
         totalTrades: db.trades.data.length,
         escrowAddress: serverKeypair.address,
         ipfsConfigured: ipfs.isConfigured(),
+        aiModel: aiImage.isConfigured() ? 'flux-schnell' : 'mock',
         platformFeePercent: PLATFORM_FEE_PERCENT
     });
 });
@@ -609,7 +614,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`  NFT-XERIS Platform`);
     console.log(`  http://localhost:${PORT}`);
     console.log(`  Escrow: ${serverKeypair.address}`);
-    console.log(`  IPFS: ${ipfs.isConfigured() ? 'Pinata' : 'Local fallback'}`);
+    console.log(`  AI:      ${aiImage.isConfigured() ? 'FLUX.1 schnell (Replicate)' : 'Mock SVG (set REPLICATE_API_TOKEN)'}`);
+    console.log(`  IPFS:    ${ipfs.isConfigured() ? 'Pinata' : 'Local fallback'}`);
     console.log(`  Network: ${chain.networkName}`);
     console.log(`========================================\n`);
 });
