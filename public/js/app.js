@@ -12,7 +12,7 @@ const App = (() => {
         address: null,
         token: null,
         user: null,
-        currentView: 'gallery'
+        currentView: 'mint'
     };
 
     // Re-render Lucide icons in dynamic content
@@ -130,7 +130,7 @@ const App = (() => {
                 <div style="display:flex;flex-direction:column;gap:10px;max-width:320px;margin:0 auto;">
                     <button class="btn btn-primary" style="justify-content:center;" onclick="App.closeModal();App.showView('mint');">
                         <i data-lucide="zap" style="width:16px;height:16px;"></i>
-                        Quick Mint (No Wallet Needed)
+                        Create Without Wallet
                     </button>
                     <a href="https://github.com/nickvprince/Xeris-Command-Center/releases" target="_blank" class="btn btn-secondary" style="justify-content:center;text-decoration:none;">
                         <i data-lucide="download" style="width:16px;height:16px;"></i>
@@ -150,7 +150,7 @@ const App = (() => {
         localStorage.removeItem('nft_token');
         localStorage.removeItem('nft_address');
         updateUI();
-        showView('gallery');
+        showView('mint');
     }
 
     async function loadBalance() {
@@ -218,7 +218,7 @@ const App = (() => {
             if (data.items.length === 0) {
                 grid.innerHTML = `<div class="empty-state">
                     <i data-lucide="image-plus" class="empty-state-icon"></i>
-                    <div>No NFTs yet. Be the first to mint!</div>
+                    <div>No NFTs yet. Be the first to create one!</div>
                 </div>`;
                 renderIcons();
                 return;
@@ -331,10 +331,10 @@ const App = (() => {
                     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
                         ${state.connected ? `
                         <button class="btn btn-primary" onclick="App.mintNFT()">
-                            <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Mint NFT
+                            <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Save as NFT
                         </button>` : ''}
                         <button class="btn btn-primary btn-quick-mint" onclick="App.guestMint()" ${state.connected ? 'style="display:none;"' : ''}>
-                            <i data-lucide="zap" style="width:14px;height:14px;"></i> Quick Mint — No Wallet
+                            <i data-lucide="zap" style="width:14px;height:14px;"></i> ${getSavedGuestWallet() ? 'Save as NFT' : 'Save — No Wallet Needed'}
                         </button>
                         <button class="btn btn-secondary" onclick="App.generateImage()">
                             <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Regenerate
@@ -344,7 +344,7 @@ const App = (() => {
                 renderIcons();
             }
 
-            showToast('Image generated! Mint it or regenerate.', 'success');
+            showToast('Image generated! Save it or regenerate.', 'success');
         } catch (e) {
             showToast('Generation failed: ' + e.message, 'error');
         } finally {
@@ -407,6 +407,18 @@ const App = (() => {
 
     let _guestSeedPhrase = null;
 
+    function getSavedGuestWallet() {
+        try {
+            const saved = localStorage.getItem('guest_wallet');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return null;
+    }
+
+    function saveGuestWallet(address, mnemonic) {
+        localStorage.setItem('guest_wallet', JSON.stringify({ address, mnemonic }));
+    }
+
     async function guestMint() {
         if (!_currentGeneration) {
             showToast('Generate an image first', 'error');
@@ -416,19 +428,36 @@ const App = (() => {
         const nameInput = document.getElementById('mint-name');
         const name = nameInput ? nameInput.value.trim() : '';
 
-        setStatus('Creating wallet & minting...');
+        const saved = getSavedGuestWallet();
+        const isFirstMint = !saved;
+
+        let walletAddress, mnemonic;
+
+        if (saved) {
+            setStatus('Creating NFT...');
+            walletAddress = saved.address;
+            mnemonic = saved.mnemonic;
+        } else {
+            setStatus('Creating wallet & NFT...');
+            const wallet = await XerisKeygen.createWallet();
+            walletAddress = wallet.address;
+            mnemonic = wallet.mnemonic;
+        }
 
         try {
-            const wallet = await XerisKeygen.createWallet();
-
             const data = await api('POST', '/api/mint/guest', {
                 generationId: _currentGeneration.generationId,
-                walletAddress: wallet.address,
+                walletAddress,
                 name: name || undefined
             });
 
+            // Save guest wallet for future mints
+            if (isFirstMint) {
+                saveGuestWallet(walletAddress, mnemonic);
+            }
+
             _currentGeneration = null;
-            showToast('NFT minted successfully!', 'success');
+            showToast('NFT created successfully!', 'success');
 
             const preview = document.getElementById('mint-preview');
             if (preview) {
@@ -436,8 +465,8 @@ const App = (() => {
                 <div class="mint-result">
                     <img src="${escapeHtml(data.nft.imageGateway || data.nft.imageUrl)}" alt="${escapeHtml(data.nft.name)}"/>
                     <h3>${escapeHtml(data.nft.name)}</h3>
-                    <p><i data-lucide="check-circle" style="width:14px;height:14px;color:#10b981;"></i> Minted successfully!</p>
-                    <p style="font-size:12px;color:var(--text-muted);">Owner: ${shortAddr(wallet.address)}</p>
+                    <p><i data-lucide="check-circle" style="width:14px;height:14px;color:#10b981;"></i> Created successfully!</p>
+                    <p style="font-size:12px;color:var(--text-muted);">Owner: ${shortAddr(walletAddress)}</p>
                     <button class="btn btn-secondary" onclick="App.showNFTDetail('${data.nft.id}')">
                         <i data-lucide="eye" style="width:14px;height:14px;"></i> View Details
                     </button>
@@ -445,7 +474,10 @@ const App = (() => {
                 renderIcons();
             }
 
-            showSeedPhrase(wallet.mnemonic, data.nft, wallet.address);
+            // Only show seed phrase on first mint
+            if (isFirstMint) {
+                showSeedPhrase(mnemonic, data.nft, walletAddress);
+            }
 
             document.getElementById('mint-prompt').value = '';
             if (nameInput) nameInput.value = '';
@@ -509,7 +541,7 @@ const App = (() => {
             if (data.items.length === 0) {
                 grid.innerHTML = `<div class="empty-state">
                     <i data-lucide="store" class="empty-state-icon"></i>
-                    <div>No active listings. Mint an NFT and list it!</div>
+                    <div>No active listings. Create an NFT and list it!</div>
                 </div>`;
                 renderIcons();
                 return;
@@ -566,7 +598,7 @@ const App = (() => {
             if (data.items.length === 0) {
                 grid.innerHTML = `<div class="empty-state">
                     <i data-lucide="image-plus" class="empty-state-icon"></i>
-                    <div>You don't own any NFTs yet. Go mint one!</div>
+                    <div>You don't own any NFTs yet. Go create one!</div>
                 </div>`;
                 renderIcons();
                 return;
@@ -757,8 +789,8 @@ const App = (() => {
         await tryRestore();
         updateUI();
 
-        // Load initial view
-        showView('gallery');
+        // Load initial view — open the creator
+        showView('mint');
 
         // Load platform stats with icons
         try {

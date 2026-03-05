@@ -28,13 +28,13 @@
 
     <!-- Navigation -->
     <div class="nav">
-        <button class="nav-tab active" data-view="gallery">
+        <button class="nav-tab" data-view="gallery">
             <i data-lucide="layout-grid" style="width:15px;height:15px;"></i>
             Gallery
         </button>
-        <button class="nav-tab" data-view="mint">
+        <button class="nav-tab active" data-view="mint">
             <i data-lucide="sparkles" style="width:15px;height:15px;"></i>
-            Mint
+            Create
         </button>
         <button class="nav-tab" data-view="marketplace">
             <i data-lucide="store" style="width:15px;height:15px;"></i>
@@ -53,16 +53,16 @@
     <div id="platform-stats" class="stats-bar"></div>
 
     <!-- Gallery View -->
-    <div id="view-gallery" class="view active">
+    <div id="view-gallery" class="view">
         <div class="view-header">
             <h2><i data-lucide="layout-grid" class="view-icon"></i> Gallery</h2>
-            <p class="view-desc">Browse all minted NFTs on the Xeris network</p>
+            <p class="view-desc">Browse all NFTs created on the Xeris network</p>
         </div>
         <div id="gallery-grid" class="nft-grid"></div>
     </div>
 
     <!-- Mint View -->
-    <div id="view-mint" class="view">
+    <div id="view-mint" class="view active">
         <div class="mint-container">
             <div class="mint-form">
                 <div class="mint-form-header">
@@ -70,7 +70,7 @@
                         <i data-lucide="wand-2" style="width:24px;height:24px;"></i>
                     </div>
                     <div>
-                        <h2>Create AI NFT</h2>
+                        <h2>Create AI Art</h2>
                         <p class="mint-sub">Describe your vision and AI will generate a unique piece of art</p>
                     </div>
                 </div>
@@ -98,7 +98,7 @@
                         <i data-lucide="wand-2" style="width:16px;height:16px;"></i>
                         Generate
                     </button>
-                    <p class="quick-mint-hint">Generate an image first, then mint when you're happy with it.</p>
+                    <p class="quick-mint-hint">Generate an image first, then save it as an NFT when you're happy with it.</p>
                 </div>
                 <div id="mint-preview"></div>
             </div>
