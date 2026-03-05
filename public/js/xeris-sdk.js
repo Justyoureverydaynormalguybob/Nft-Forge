@@ -38,8 +38,13 @@ class XerisDApp {
 
     static detectProvider() {
         if (typeof window === 'undefined') return null;
+        // Xeris Wallet Browser (native bridge)
         if (window.xeris) return window.xeris;
+        // Xeris-flagged Solana provider
         if (window.solana && window.solana.isXeris) return window.solana;
+        // Phantom wallet (dApp browser or extension)
+        if (window.phantom?.solana) return window.phantom.solana;
+        // Generic Solana provider
         if (window.solana) return window.solana;
         return null;
     }
@@ -95,16 +100,12 @@ class XerisDApp {
             onlyIfTrusted: opts.onlyIfTrusted || false
         });
 
-        // Extract public key
-        if (result && result.publicKey) {
-            this._publicKey = typeof result.publicKey === 'string'
-                ? result.publicKey
-                : result.publicKey.toString();
-        } else if (typeof result === 'string') {
-            this._publicKey = result;
-        } else {
+        // Extract public key (handle various wallet response formats)
+        const addr = XerisDApp._extractAddress(result, this._provider);
+        if (!addr) {
             throw new Error('No public key returned from wallet');
         }
+        this._publicKey = addr;
 
         this._connected = true;
 
@@ -130,10 +131,9 @@ class XerisDApp {
             });
 
             this._provider.on('accountChanged', (newPubkey) => {
-                if (newPubkey) {
-                    this._publicKey = typeof newPubkey === 'string'
-                        ? newPubkey
-                        : newPubkey.toString();
+                const addr = XerisDApp._extractAddress(newPubkey, this._provider);
+                if (addr) {
+                    this._publicKey = addr;
                     this._emit('accountChanged', this._publicKey);
                 } else {
                     this._connected = false;
@@ -474,6 +474,17 @@ class XerisDApp {
         this._requireConnected();
         const res = await fetch(`${this._rpcUrl}/airdrop/${this._publicKey}/${amountXrs}`);
         return res.json();
+    }
+
+    // ─── ADDRESS EXTRACTION (matches Forge's extractWalletAddress) ──
+
+    static _extractAddress(resp, provider) {
+        if (typeof resp === 'string') return resp;
+        if (resp?.publicKey) return resp.publicKey.toString();
+        if (resp?.address) return resp.address;
+        if (provider?.publicKey) return provider.publicKey.toString();
+        if (provider?.address) return provider.address;
+        return null;
     }
 
     // ─── STATIC FACTORY ─────────────────────────────────────────
