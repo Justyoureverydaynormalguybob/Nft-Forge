@@ -891,7 +891,10 @@ const App = (() => {
                 ${agent.status !== 'revoked' ? `
                     <button class="btn btn-small btn-danger" onclick="App.revokeAgent('${agent.id}')">
                         <i data-lucide="shield-off" style="width:12px;height:12px;"></i> Revoke
-                    </button>` : ''}
+                    </button>` : `
+                    <button class="btn btn-small btn-danger" onclick="App.deleteAgent('${agent.id}')">
+                        <i data-lucide="trash-2" style="width:12px;height:12px;"></i> Delete
+                    </button>`}
             </div>
         </div>`;
     }
@@ -1001,6 +1004,83 @@ const App = (() => {
             loadAgents();
         } catch (e) {
             showToast('Revoke failed: ' + e.message, 'error');
+        }
+    }
+
+    async function deleteAgent(agentId) {
+        if (!confirm('Permanently delete this agent? Activity history will be preserved.')) return;
+        try {
+            await api('DELETE', '/api/agents/' + agentId + '/permanent');
+            showToast('Agent deleted', 'success');
+            loadAgents();
+        } catch (e) {
+            showToast('Delete failed: ' + e.message, 'error');
+        }
+    }
+
+    async function showBotHistory() {
+        const detail = document.getElementById('agent-detail');
+        detail.classList.remove('hidden');
+        detail.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading history...</div>`;
+
+        try {
+            const data = await api('GET', '/api/agents/history');
+            const items = data.items || [];
+
+            if (items.length === 0) {
+                detail.innerHTML = `<div class="agent-activity">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <h3><i data-lucide="history" style="width:16px;height:16px;color:var(--accent);"></i> Bot History</h3>
+                        <button class="btn btn-small btn-secondary" onclick="document.getElementById('agent-detail').classList.add('hidden')">
+                            <i data-lucide="x" style="width:12px;height:12px;"></i> Close
+                        </button>
+                    </div>
+                    <p class="text-muted">No bot history yet.</p>
+                </div>`;
+                renderIcons();
+                return;
+            }
+
+            const actionIcons = {
+                evaluate: 'search', buy_attempt: 'shopping-cart', buy_success: 'check-circle',
+                buy_failed: 'x-circle', relist: 'tag', error: 'alert-triangle', deleted: 'trash-2'
+            };
+            const actionColors = {
+                evaluate: 'var(--text-secondary)', buy_attempt: 'var(--accent)',
+                buy_success: 'var(--success)', buy_failed: 'var(--error)',
+                relist: '#818cf8', error: 'var(--error)', deleted: 'var(--error)'
+            };
+
+            const rows = items.map(item => {
+                let details = {};
+                try { details = typeof item.details === 'string' ? JSON.parse(item.details) : (item.details || {}); } catch (e) {}
+                const icon = actionIcons[item.action] || 'circle';
+                const color = actionColors[item.action] || 'var(--text-muted)';
+                const time = new Date(item.createdAt).toLocaleString();
+                const agentName = item.agentName || details.agentName || '—';
+
+                return `<div class="activity-row">
+                    <i data-lucide="${icon}" style="width:14px;height:14px;color:${color};flex-shrink:0;"></i>
+                    <span class="activity-action" style="color:${color};">${item.action}</span>
+                    <span style="font-size:11px;color:var(--text-muted);min-width:60px;">${escapeHtml(agentName)}</span>
+                    <span class="activity-detail">${escapeHtml(details.nftName || details.reason || details.error || '')}</span>
+                    ${details.priceXRS ? `<span class="activity-price">${details.priceXRS} XRS</span>` : ''}
+                    <span class="activity-time">${time}</span>
+                </div>`;
+            }).join('');
+
+            detail.innerHTML = `<div class="agent-activity">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3><i data-lucide="history" style="width:16px;height:16px;color:var(--accent);"></i> Bot History</h3>
+                    <button class="btn btn-small btn-secondary" onclick="document.getElementById('agent-detail').classList.add('hidden')">
+                        <i data-lucide="x" style="width:12px;height:12px;"></i> Close
+                    </button>
+                </div>
+                <div class="activity-list">${rows}</div>
+            </div>`;
+            renderIcons();
+        } catch (e) {
+            detail.innerHTML = `<div class="error">Failed to load history</div>`;
         }
     }
 
@@ -1234,6 +1314,8 @@ const App = (() => {
         createAgent,
         toggleAgent,
         revokeAgent,
+        deleteAgent,
+        showBotHistory,
         showAgentActivity
     };
 })();

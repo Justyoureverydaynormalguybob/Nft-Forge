@@ -929,6 +929,88 @@ app.delete('/api/agents/:id', requireAuth, async (req, res) => {
     }
 });
 
+// Permanently delete a revoked agent
+app.delete('/api/agents/:id/permanent', requireAuth, async (req, res) => {
+    try {
+        const agent = await db.agents.getById(req.params.id);
+        if (!agent) return res.status(404).json({ error: 'Agent not found' });
+        if (agent.ownerAddress !== req.user.address) {
+            return res.status(403).json({ error: 'Not your agent' });
+        }
+        if (agent.status !== 'revoked') {
+            return res.status(400).json({ error: 'Agent must be revoked before deleting' });
+        }
+
+        // Log deletion before removing
+        await db.agentActivity.create({
+            agentId: agent.id,
+            action: 'deleted',
+            details: JSON.stringify({
+                agentName: agent.name,
+                strategy: agent.strategy,
+                totalSpent: agent.totalSpent,
+                totalEarned: agent.totalEarned,
+                nftsBought: agent.nftsBought,
+                nftsSold: agent.nftsSold
+            }),
+            createdAt: new Date().toISOString()
+        });
+
+        await db.agents.delete(req.params.id);
+        console.log(`[AGENT] Deleted: "${agent.name}" by ${req.user.address.substring(0, 12)}...`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[API] DELETE /api/agents permanent error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to delete agent' });
+    }
+});
+
+// Get all agent activity for this user (bot history)
+app.get('/api/agents/history', requireAuth, async (req, res) => {
+    try {
+        // Get all agents (including deleted ones via activity logs)
+        const userAgents = await db.agents.find({ ownerAddress: req.user.address });
+        const agentIds = userAgents.map(a => a.id);
+
+        // Get activity for all user's agents
+        const allActivity = [];
+        for (const agentId of agentIds) {
+            const result = await db.agentActivity.list({
+                filter: { agentId },
+                sort: { field: 'createdAt', order: 'desc' },
+                limit: 50
+            });
+            result.items.forEach(item => {
+                const agent = userAgents.find(a => a.id === item.agentId);
+                item.agentName = agent ? agent.name : 'Deleted Agent';
+            });
+            allActivity.push(...result.items);
+        }
+
+        // Also get activity for deleted agents (where agent no longer exists)
+        const orphanedActivity = await db.agentActivity.list({
+            sort: { field: 'createdAt', order: 'desc' },
+            limit: 200
+        });
+        for (const item of orphanedActivity.items) {
+            if (!agentIds.includes(item.agentId) && !allActivity.find(a => a.id === item.id)) {
+                let details = {};
+                try { details = typeof item.details === 'string' ? JSON.parse(item.details) : (item.details || {}); } catch (e) {}
+                item.agentName = details.agentName || 'Deleted Agent';
+                allActivity.push(item);
+            }
+        }
+
+        // Sort by date descending
+        allActivity.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.json({ items: allActivity.slice(0, 100) });
+    } catch (e) {
+        console.error(`[API] GET /api/agents/history error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load history' });
+    }
+});
+
 // Get agent activity log
 app.get('/api/agents/:id/activity', requireAuth, async (req, res) => {
     try {
