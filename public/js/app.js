@@ -380,9 +380,13 @@ const App = (() => {
             if (preview) {
                 preview.innerHTML = `
                 <div class="mint-result">
-                    <img src="${escapeHtml(data.imageUrl)}" alt="AI Generated Preview"/>
-                    <p style="color:var(--text-secondary);font-size:13px;margin:8px 0;">Happy with this image?</p>
-                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                    <div id="img-loader" style="text-align:center;padding:30px 0;">
+                        <div class="spinner-accent" style="margin:0 auto 12px;"></div>
+                        <p style="color:var(--text-muted);font-size:13px;">Loading image...</p>
+                    </div>
+                    <img src="${escapeHtml(data.imageUrl)}" alt="AI Generated Preview" style="display:none;" onload="this.style.display='';document.getElementById('img-loader').style.display='none';document.getElementById('img-actions-hint').style.display='';document.getElementById('img-actions-btns').style.display='flex';" onerror="document.getElementById('img-loader').innerHTML='<p style=\\'color:var(--error);font-size:13px;\\'>Image failed to load</p>';"/>
+                    <p id="img-actions-hint" style="color:var(--text-secondary);font-size:13px;margin:8px 0;display:none;">Happy with this image?</p>
+                    <div id="img-actions-btns" style="display:none;gap:10px;justify-content:center;flex-wrap:wrap;">
                         ${state.connected ? `
                         <button class="btn btn-primary" onclick="App.mintNFT()">
                             <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Save as NFT
@@ -398,7 +402,7 @@ const App = (() => {
                 renderIcons();
             }
 
-            showToast('Image generated! Save it or regenerate.', 'success');
+            showToast('Image generated! Loading preview...', 'success');
         } catch (e) {
             showToast('Generation failed: ' + e.message, 'error');
         } finally {
