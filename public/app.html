@@ -170,6 +170,15 @@
         </div>
     </div>
 
+    <!-- Lightbox (fullscreen image viewer) -->
+    <div id="lightbox" class="lightbox" onclick="App.closeLightbox()">
+        <button class="lightbox-close" onclick="App.closeLightbox()">
+            <i data-lucide="x" style="width:18px;height:18px;"></i>
+        </button>
+        <img id="lightbox-img" src="" alt=""/>
+        <div id="lightbox-title" class="lightbox-title"></div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container"></div>
 

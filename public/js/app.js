@@ -301,7 +301,7 @@ const App = (() => {
             }
 
             content.innerHTML = `
-            <div class="detail-image"><img src="${escapeHtml(nft.imageUrl)}" alt="${escapeHtml(nft.name)}"/></div>
+            <div class="detail-image" onclick="event.stopPropagation();App.openLightbox('${escapeHtml(nft.imageUrl)}','${escapeHtml(nft.name)}')"><img src="${escapeHtml(nft.imageUrl)}" alt="${escapeHtml(nft.name)}"/></div>
             <div class="detail-info">
                 <h2>${escapeHtml(nft.name)}</h2>
                 <div class="detail-meta">
@@ -328,6 +328,22 @@ const App = (() => {
 
     function closeModal() {
         document.getElementById('nft-modal').classList.remove('active');
+    }
+
+    // ─── LIGHTBOX (fullscreen image viewer) ──────────────────────
+
+    function openLightbox(imageUrl, title) {
+        const lb = document.getElementById('lightbox');
+        const img = document.getElementById('lightbox-img');
+        const titleEl = document.getElementById('lightbox-title');
+        img.src = imageUrl;
+        titleEl.textContent = title || '';
+        lb.classList.add('active');
+        renderIcons();
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
     }
 
     // ─── GENERATION & MINTING ─────────────────────────────────────────
@@ -852,6 +868,7 @@ const App = (() => {
         // Escape closes modals
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                closeLightbox();
                 closeModal();
                 closeSeedModal();
             }
@@ -910,6 +927,8 @@ const App = (() => {
         closeSeedModal,
         showNFTDetail,
         closeModal,
+        openLightbox,
+        closeLightbox,
         showListForm,
         createListing,
         cancelListing,
