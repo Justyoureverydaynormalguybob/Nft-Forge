@@ -284,11 +284,21 @@ const App = (() => {
         content.innerHTML = `<div class="loading" style="padding:80px 20px;"><div class="spinner-accent"></div>Loading...</div>`;
 
         try {
-            const { nft, collection } = await api('GET', '/api/nfts/' + nftId);
+            const [{ nft, collection }, listingData] = await Promise.all([
+                api('GET', '/api/nfts/' + nftId),
+                api('GET', '/api/listings/by-nft/' + nftId)
+            ]);
             const isOwner = state.address && nft.ownerAddress === state.address;
+            const activeListing = listingData.listing;
 
-            const listings = await api('GET', '/api/listings?limit=100');
-            const activeListing = listings.items.find(l => l.nftId === nftId);
+            let actionButtons = '';
+            if (isOwner && !activeListing) {
+                actionButtons = `<button class="btn btn-primary" onclick="App.showListForm('${nft.id}')"><i data-lucide="tag" style="width:14px;height:14px;"></i> List for Sale</button>`;
+            } else if (isOwner && activeListing) {
+                actionButtons = `<button class="btn btn-secondary" onclick="App.cancelListing('${activeListing.id}', '${nft.id}')"><i data-lucide="x-circle" style="width:14px;height:14px;"></i> Cancel Listing</button>`;
+            } else if (activeListing && state.connected) {
+                actionButtons = `<button class="btn btn-buy" onclick="App.buyNFT('${activeListing.id}', ${activeListing.priceLamports})"><i data-lucide="shopping-cart" style="width:14px;height:14px;"></i> Buy for ${activeListing.priceXRS} XRS</button>`;
+            }
 
             content.innerHTML = `
             <div class="detail-image"><img src="${escapeHtml(nft.imageUrl)}" alt="${escapeHtml(nft.name)}"/></div>
@@ -301,8 +311,7 @@ const App = (() => {
                     <div><i data-lucide="calendar" style="width:13px;height:13px;"></i> <strong>Minted:</strong> ${new Date(nft.mintedAt).toLocaleDateString()}</div>
                 </div>
                 <div class="detail-actions">
-                    ${isOwner && !activeListing ? `<button class="btn btn-primary" onclick="App.showListForm('${nft.id}')"><i data-lucide="tag" style="width:14px;height:14px;"></i> List for Sale</button>` : ''}
-                    ${activeListing && !isOwner && state.connected ? `<button class="btn btn-buy" onclick="App.buyNFT('${activeListing.id}', ${activeListing.priceLamports})"><i data-lucide="shopping-cart" style="width:14px;height:14px;"></i> Buy for ${activeListing.priceXRS} XRS</button>` : ''}
+                    ${actionButtons}
                     ${activeListing ? `<div class="listing-price"><i data-lucide="coins" style="width:16px;height:16px;"></i> ${activeListing.priceXRS} XRS</div>` : ''}
                 </div>
                 <div id="list-form" class="hidden"></div>
@@ -626,11 +635,14 @@ const App = (() => {
     // ─── MY NFTs ─────────────────────────────────────────────────────
 
     async function loadMyNFTs() {
-        if (!state.connected) {
+        const guestWallet = getSavedGuestWallet();
+        const ownerAddress = state.connected ? state.address : (guestWallet ? guestWallet.address : null);
+
+        if (!ownerAddress) {
             const grid = document.getElementById('my-nfts-grid');
             grid.innerHTML = `<div class="empty-state">
                 <i data-lucide="wallet" class="empty-state-icon"></i>
-                <div>Connect wallet to see your NFTs</div>
+                <div>Connect wallet or create an NFT to see your collection</div>
             </div>`;
             renderIcons();
             return;
@@ -640,7 +652,7 @@ const App = (() => {
         grid.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading your NFTs...</div>`;
 
         try {
-            const data = await api('GET', '/api/nfts/owner/' + state.address);
+            const data = await api('GET', '/api/nfts/owner/' + ownerAddress);
             if (data.items.length === 0) {
                 grid.innerHTML = `<div class="empty-state">
                     <i data-lucide="image-plus" class="empty-state-icon"></i>
@@ -691,6 +703,18 @@ const App = (() => {
             loadMarketplace();
         } catch (e) {
             showToast('Listing failed: ' + e.message, 'error');
+        }
+    }
+
+    async function cancelListing(listingId, nftId) {
+        if (!confirm('Cancel this listing?')) return;
+        try {
+            await api('DELETE', '/api/listings/' + listingId);
+            showToast('Listing cancelled', 'success');
+            closeModal();
+            if (nftId) showNFTDetail(nftId);
+        } catch (e) {
+            showToast('Cancel failed: ' + e.message, 'error');
         }
     }
 
@@ -756,7 +780,15 @@ const App = (() => {
         } else {
             connectBtn.classList.remove('hidden');
             userInfo.classList.add('hidden');
-            authActions.forEach(el => el.classList.add('hidden'));
+            // Show My NFTs tab for guest users with a saved wallet
+            const guestWallet = getSavedGuestWallet();
+            authActions.forEach(el => {
+                if (guestWallet && el.dataset.view === 'my-nfts') {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
         }
 
         updateMintButtons();
@@ -880,6 +912,7 @@ const App = (() => {
         closeModal,
         showListForm,
         createListing,
+        cancelListing,
         buyNFT,
         loadGallery,
         loadMarketplace,
