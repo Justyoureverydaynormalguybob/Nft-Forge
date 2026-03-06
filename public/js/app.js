@@ -288,7 +288,9 @@ const App = (() => {
                 api('GET', '/api/nfts/' + nftId),
                 api('GET', '/api/listings/by-nft/' + nftId)
             ]);
+            const guestWallet = getSavedGuestWallet();
             const isOwner = state.address && nft.ownerAddress === state.address;
+            const isGuestOwner = !isOwner && guestWallet && nft.ownerAddress === guestWallet.address;
             const activeListing = listingData.listing;
 
             let actionButtons = '';
@@ -296,6 +298,9 @@ const App = (() => {
                 actionButtons = `<button class="btn btn-primary" onclick="App.showListForm('${nft.id}')"><i data-lucide="tag" style="width:14px;height:14px;"></i> List for Sale</button>`;
             } else if (isOwner && activeListing) {
                 actionButtons = `<button class="btn btn-secondary" onclick="App.cancelListing('${activeListing.id}', '${nft.id}')"><i data-lucide="x-circle" style="width:14px;height:14px;"></i> Cancel Listing</button>`;
+            } else if (isGuestOwner && !activeListing) {
+                actionButtons = `<button class="btn btn-primary btn-disabled-hint" onclick="App.promptWalletToSell()" style="opacity:0.6;"><i data-lucide="tag" style="width:14px;height:14px;"></i> List for Sale</button>
+                <p style="font-size:11px;color:var(--text-muted);margin-top:6px;"><i data-lucide="info" style="width:12px;height:12px;"></i> Import your seed phrase into Xeris Command Center and connect your wallet to list NFTs for sale.</p>`;
             } else if (activeListing && state.connected) {
                 actionButtons = `<button class="btn btn-buy" onclick="App.buyNFT('${activeListing.id}', ${activeListing.priceLamports})"><i data-lucide="shopping-cart" style="width:14px;height:14px;"></i> Buy for ${activeListing.priceXRS} XRS</button>`;
             }
@@ -335,9 +340,7 @@ const App = (() => {
     function openLightbox(imageUrl, title) {
         const lb = document.getElementById('lightbox');
         const img = document.getElementById('lightbox-img');
-        const titleEl = document.getElementById('lightbox-title');
         img.src = imageUrl;
-        titleEl.textContent = title || '';
         lb.classList.add('active');
         renderIcons();
     }
@@ -722,6 +725,11 @@ const App = (() => {
         }
     }
 
+    function promptWalletToSell() {
+        showToast('Connect your wallet to list NFTs for sale. Import your seed phrase into Xeris Command Center first.', 'info');
+        connectWallet();
+    }
+
     async function cancelListing(listingId, nftId) {
         if (!confirm('Cancel this listing?')) return;
         try {
@@ -932,6 +940,7 @@ const App = (() => {
         showListForm,
         createListing,
         cancelListing,
+        promptWalletToSell,
         buyNFT,
         loadGallery,
         loadMarketplace,

@@ -657,17 +657,6 @@ body {
     background: rgba(255, 255, 255, 0.2);
 }
 
-.lightbox-title {
-    position: absolute;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    text-align: center;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    font-weight: 500;
-    pointer-events: none;
-}
 
 .detail-info {
     padding: 20px;
