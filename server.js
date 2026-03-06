@@ -104,12 +104,16 @@ app.post('/api/auth/challenge', (req, res) => {
     if (!address || typeof address !== 'string' || address.length < 20) {
         return res.status(400).json({ error: 'Invalid wallet address' });
     }
-    const challenge = `Sign this message to connect to Xeris NFT Platform\nAddress: ${address}\nNonce: ${crypto.randomBytes(16).toString('hex')}\nTimestamp: ${Date.now()}`;
-    pendingChallenges.set(address, { challenge, createdAt: Date.now() });
-    // Clean old challenges (>5 min)
+    // Clean old challenges (>5 min) and enforce cap
     for (const [addr, data] of pendingChallenges) {
         if (Date.now() - data.createdAt > 300000) pendingChallenges.delete(addr);
     }
+    if (pendingChallenges.size >= MAX_PENDING_CHALLENGES) {
+        return res.status(429).json({ error: 'Too many pending auth requests. Try again later.' });
+    }
+
+    const challenge = `Sign this message to connect to NFT Forge\nAddress: ${address}\nNonce: ${crypto.randomBytes(16).toString('hex')}\nTimestamp: ${Date.now()}`;
+    pendingChallenges.set(address, { challenge, createdAt: Date.now() });
     res.json({ challenge });
 });
 
@@ -168,14 +172,16 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
 
 // Store pending generations (in-memory, cleared on restart)
 const pendingGenerations = new Map();
+const MAX_PENDING_GENERATIONS = 500;
+const MAX_PENDING_CHALLENGES = 2000;
 
-// Clean old generations every 10 minutes
+// Clean old generations every 5 minutes
 setInterval(() => {
     const cutoff = Date.now() - 30 * 60 * 1000; // 30 min expiry
     for (const [key, gen] of pendingGenerations) {
         if (gen.createdAt < cutoff) pendingGenerations.delete(key);
     }
-}, 10 * 60 * 1000);
+}, 5 * 60 * 1000);
 
 const generateLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -191,6 +197,12 @@ app.post('/api/generate', generateLimiter, async (req, res) => {
         }
 
         const sanitizedPrompt = prompt.trim().substring(0, 500);
+
+        // Enforce pending generation cap
+        if (pendingGenerations.size >= MAX_PENDING_GENERATIONS) {
+            return res.status(429).json({ error: 'Too many pending generations. Please try again shortly.' });
+        }
+
         console.log(`[GENERATE] prompt: "${sanitizedPrompt.substring(0, 30)}..."`);
 
         // Generate AI image
@@ -241,18 +253,20 @@ app.post('/api/mint', requireAuth, mintLimiter, async (req, res) => {
 
         const creatorAddress = req.user.address;
 
-        // Verify collection exists (if specified)
+        // Verify collection exists and user owns it (if specified)
         let collection = null;
         if (collectionId) {
             collection = await db.collections.getById(collectionId);
             if (!collection) return res.status(404).json({ error: 'Collection not found' });
+            if (collection.creatorAddress !== creatorAddress) {
+                return res.status(403).json({ error: 'You do not own this collection' });
+            }
             if (collection.maxSupply > 0 && collection.mintCount >= collection.maxSupply) {
                 return res.status(400).json({ error: 'Collection max supply reached' });
             }
         }
 
-        const nftCount = await db.nfts.count();
-        const nftNumber = nftCount + 1;
+        const nftNumber = await db.nextTokenNumber();
         const nftName = name || `AI Art #${nftNumber}`;
 
         // Build metadata
@@ -334,8 +348,7 @@ app.post('/api/mint/guest', guestMintLimiter, async (req, res) => {
         const creatorAddress = walletAddress;
         await db.getOrCreateUser(creatorAddress);
 
-        const guestNftCount = await db.nfts.count();
-        const nftNumber = guestNftCount + 1;
+        const nftNumber = await db.nextTokenNumber();
         const nftName = name || `AI Art #${nftNumber}`;
 
         const metadata = {
@@ -524,6 +537,16 @@ app.get('/api/listings', async (req, res) => {
     } catch (e) {
         console.error(`[API] GET /api/listings error: ${e.message}`);
         res.status(500).json({ error: 'Failed to load listings' });
+    }
+});
+
+app.get('/api/listings/by-nft/:nftId', async (req, res) => {
+    try {
+        const active = await db.listings.find({ nftId: req.params.nftId, status: 'active' });
+        res.json({ listing: active[0] || null });
+    } catch (e) {
+        console.error(`[API] GET /api/listings/by-nft error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to check listing' });
     }
 });
 

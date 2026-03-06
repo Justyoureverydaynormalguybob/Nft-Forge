@@ -442,6 +442,24 @@ async function incrementMintCount(collectionId) {
     return collections.update(collectionId, { mintCount: (col.mintCount || 0) + 1 });
 }
 
+// ─── ATOMIC TOKEN NUMBERING ─────────────────────────────────────────
+
+let _tokenNumberLock = false;
+
+async function nextTokenNumber() {
+    // Simple mutex to prevent race conditions
+    while (_tokenNumberLock) {
+        await new Promise(r => setTimeout(r, 10));
+    }
+    _tokenNumberLock = true;
+    try {
+        const count = await nfts.count();
+        return count + 1;
+    } finally {
+        _tokenNumberLock = false;
+    }
+}
+
 // ─── NFT HELPERS ────────────────────────────────────────────────────
 
 async function createNFT({ collectionId, tokenNumber, ownerAddress, creatorAddress, name, promptText, imageCID, metadataCID, imageUrl, metadataUrl }) {
@@ -525,6 +543,7 @@ module.exports = {
     createListing,
     cancelListing,
     completeListing,
+    nextTokenNumber,
     recordTrade,
     initDB,
     DATA_DIR
