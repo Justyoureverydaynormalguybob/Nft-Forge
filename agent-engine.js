@@ -217,6 +217,7 @@ class AgentEngine {
                     await this.logActivity(agent.id, 'relist', {
                         nftId: nft.id,
                         nftName: nft.name,
+                        priceXRS: decision.relistPrice,
                         relistPrice: decision.relistPrice
                     });
                 } catch (e) {
