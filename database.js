@@ -106,10 +106,34 @@ async function initPostgres() {
             created_at TIMESTAMPTZ DEFAULT NOW(),
             data JSONB DEFAULT '{}'
         )`,
+        `CREATE TABLE IF NOT EXISTS agents (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            owner_address TEXT NOT NULL,
+            strategy TEXT NOT NULL DEFAULT 'bargain_hunter',
+            status TEXT NOT NULL DEFAULT 'active',
+            config JSONB DEFAULT '{}',
+            total_spent DOUBLE PRECISION DEFAULT 0,
+            total_earned DOUBLE PRECISION DEFAULT 0,
+            nfts_bought INT DEFAULT 0,
+            nfts_sold INT DEFAULT 0,
+            last_action_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            data JSONB DEFAULT '{}'
+        )`,
+        `CREATE TABLE IF NOT EXISTS agent_activity (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            details JSONB DEFAULT '{}',
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )`,
         `CREATE INDEX IF NOT EXISTS idx_nfts_owner ON nfts(owner_address)`,
         `CREATE INDEX IF NOT EXISTS idx_nfts_creator ON nfts(creator_address)`,
         `CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status)`,
-        `CREATE INDEX IF NOT EXISTS idx_users_address ON users(address)`
+        `CREATE INDEX IF NOT EXISTS idx_users_address ON users(address)`,
+        `CREATE INDEX IF NOT EXISTS idx_agents_owner ON agents(owner_address)`,
+        `CREATE INDEX IF NOT EXISTS idx_agent_activity_agent ON agent_activity(agent_id)`
     ];
 
     for (const sql of statements) {
@@ -389,9 +413,22 @@ const TRADE_FIELDS = {
     createdAt: 'created_at'
 };
 
+const AGENT_FIELDS = {
+    id: 'id', name: 'name', ownerAddress: 'owner_address',
+    strategy: 'strategy', status: 'status', config: 'config',
+    totalSpent: 'total_spent', totalEarned: 'total_earned',
+    nftsBought: 'nfts_bought', nftsSold: 'nfts_sold',
+    lastActionAt: 'last_action_at', createdAt: 'created_at'
+};
+
+const AGENT_ACTIVITY_FIELDS = {
+    id: 'id', agentId: 'agent_id', action: 'action',
+    details: 'details', createdAt: 'created_at'
+};
+
 // ─── CREATE STORES ──────────────────────────────────────────────────
 
-let users, collections, nfts, listings, trades;
+let users, collections, nfts, listings, trades, agents, agentActivity;
 
 if (USE_PG) {
     console.log('[DB] Using PostgreSQL');
@@ -400,6 +437,8 @@ if (USE_PG) {
     nfts = new PgStore('nfts', NFT_FIELDS);
     listings = new PgStore('listings', LISTING_FIELDS);
     trades = new PgStore('trades', TRADE_FIELDS);
+    agents = new PgStore('agents', AGENT_FIELDS);
+    agentActivity = new PgStore('agent_activity', AGENT_ACTIVITY_FIELDS);
 } else {
     console.log('[DB] Using JSON file storage (no DATABASE_URL)');
     users = new JsonStore('users.json');
@@ -407,6 +446,8 @@ if (USE_PG) {
     nfts = new JsonStore('nfts.json');
     listings = new JsonStore('listings.json');
     trades = new JsonStore('trades.json');
+    agents = new JsonStore('agents.json');
+    agentActivity = new JsonStore('agent-activity.json');
 }
 
 // ─── USER HELPERS ───────────────────────────────────────────────────
@@ -519,6 +560,24 @@ async function recordTrade({ listingId, nftId, buyerAddress, sellerAddress, pric
     });
 }
 
+// ─── AGENT HELPERS ──────────────────────────────────────────────────
+
+async function createAgent({ name, ownerAddress, strategy, config }) {
+    return agents.create({
+        name,
+        ownerAddress,
+        strategy: strategy || 'bargain_hunter',
+        status: 'active',
+        config: config || {},
+        totalSpent: 0,
+        totalEarned: 0,
+        nftsBought: 0,
+        nftsSold: 0,
+        lastActionAt: null,
+        createdAt: new Date().toISOString()
+    });
+}
+
 // ─── INIT (call on startup) ─────────────────────────────────────────
 
 async function initDB() {
@@ -535,6 +594,8 @@ module.exports = {
     nfts,
     listings,
     trades,
+    agents,
+    agentActivity,
     getOrCreateUser,
     createCollection,
     incrementMintCount,
@@ -545,6 +606,7 @@ module.exports = {
     completeListing,
     nextTokenNumber,
     recordTrade,
+    createAgent,
     initDB,
     DATA_DIR
 };

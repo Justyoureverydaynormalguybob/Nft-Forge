@@ -20,6 +20,8 @@ const txBuilder = require('./tx-builder');
 const db = require('./database');
 const aiImage = require('./ai-image');
 const ipfs = require('./ipfs');
+const zkPayments = require('./zk-payments');
+const { AgentEngine } = require('./agent-engine');
 
 // ─── CONFIGURATION ───────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT) || 2.5
 
 const app = express();
 const chain = new ChainConnector();
+const agentEngine = new AgentEngine(db, chain, txBuilder);
 
 // Load or generate server keypair (escrow wallet)
 const serverKeypair = txBuilder.loadKeypair(db.DATA_DIR);
@@ -789,12 +792,13 @@ app.get('/api/chain/info', async (req, res) => {
 
 app.get('/api/stats', async (req, res) => {
     try {
-        const [totalNFTs, totalCollections, totalUsers, totalListings, totalTrades] = await Promise.all([
+        const [totalNFTs, totalCollections, totalUsers, totalListings, totalTrades, totalAgents] = await Promise.all([
             db.nfts.count(),
             db.collections.count(),
             db.users.count(),
             db.listings.count({ status: 'active' }),
-            db.trades.count()
+            db.trades.count(),
+            db.agents.count({ status: 'active' })
         ]);
         res.json({
             totalNFTs,
@@ -802,15 +806,159 @@ app.get('/api/stats', async (req, res) => {
             totalUsers,
             totalListings,
             totalTrades,
+            totalAgents,
             escrowAddress: serverKeypair.address,
             ipfsConfigured: ipfs.isConfigured(),
             aiConfigured: aiImage.isConfigured(),
+            zkAvailable: zkPayments.isZKAvailable(),
+            agentEngineRunning: agentEngine.running,
             platformFeePercent: PLATFORM_FEE_PERCENT
         });
     } catch (e) {
         console.error(`[API] GET /api/stats error: ${e.message}`);
         res.status(500).json({ error: 'Failed to load stats' });
     }
+});
+
+// ─── AI AGENT ROUTES ────────────────────────────────────────────────
+
+// Get available strategies
+app.get('/api/agents/strategies', (req, res) => {
+    res.json({ strategies: agentEngine.getStrategies() });
+});
+
+// List user's agents
+app.get('/api/agents', requireAuth, async (req, res) => {
+    try {
+        const userAgents = await db.agents.find({ ownerAddress: req.user.address });
+        res.json({ agents: userAgents });
+    } catch (e) {
+        console.error(`[API] GET /api/agents error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load agents' });
+    }
+});
+
+// Create agent
+app.post('/api/agents', requireAuth, async (req, res) => {
+    try {
+        const { name, strategy, config } = req.body;
+        if (!name || typeof name !== 'string' || name.trim().length < 2) {
+            return res.status(400).json({ error: 'Agent name must be at least 2 characters' });
+        }
+
+        // Limit agents per user
+        const existing = await db.agents.find({ ownerAddress: req.user.address });
+        if (existing.length >= 3) {
+            return res.status(400).json({ error: 'Maximum 3 agents per user' });
+        }
+
+        const validStrategies = ['bargain_hunter', 'collector', 'flipper'];
+        if (strategy && !validStrategies.includes(strategy)) {
+            return res.status(400).json({ error: 'Invalid strategy' });
+        }
+
+        const safeConfig = {
+            spendingLimit: Math.min(parseFloat(config?.spendingLimit) || 10, 1000),
+            maxBuyPrice: Math.min(parseFloat(config?.maxBuyPrice) || 5, 500),
+            maxBuysPerCycle: Math.min(parseInt(config?.maxBuysPerCycle) || 1, 5),
+            keywords: typeof config?.keywords === 'string' ? config.keywords.substring(0, 200) : '',
+            markupPercent: Math.min(parseInt(config?.markupPercent) || 50, 500)
+        };
+
+        const agent = await db.createAgent({
+            name: name.trim().substring(0, 50),
+            ownerAddress: req.user.address,
+            strategy: strategy || 'bargain_hunter',
+            config: safeConfig
+        });
+
+        console.log(`[AGENT] Created: "${agent.name}" (${agent.strategy}) by ${req.user.address.substring(0, 12)}...`);
+        res.json({ success: true, agent });
+    } catch (e) {
+        console.error(`[API] POST /api/agents error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to create agent' });
+    }
+});
+
+// Update agent (pause/resume/update config)
+app.patch('/api/agents/:id', requireAuth, async (req, res) => {
+    try {
+        const agent = await db.agents.getById(req.params.id);
+        if (!agent) return res.status(404).json({ error: 'Agent not found' });
+        if (agent.ownerAddress !== req.user.address) {
+            return res.status(403).json({ error: 'Not your agent' });
+        }
+
+        const updates = {};
+        if (req.body.status === 'active' || req.body.status === 'paused') {
+            updates.status = req.body.status;
+        }
+        if (req.body.config) {
+            updates.config = {
+                spendingLimit: Math.min(parseFloat(req.body.config.spendingLimit) || 10, 1000),
+                maxBuyPrice: Math.min(parseFloat(req.body.config.maxBuyPrice) || 5, 500),
+                maxBuysPerCycle: Math.min(parseInt(req.body.config.maxBuysPerCycle) || 1, 5),
+                keywords: typeof req.body.config.keywords === 'string' ? req.body.config.keywords.substring(0, 200) : '',
+                markupPercent: Math.min(parseInt(req.body.config.markupPercent) || 50, 500)
+            };
+        }
+
+        const updated = await db.agents.update(req.params.id, updates);
+        res.json({ success: true, agent: updated });
+    } catch (e) {
+        console.error(`[API] PATCH /api/agents error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to update agent' });
+    }
+});
+
+// Revoke agent (permanent deactivation)
+app.delete('/api/agents/:id', requireAuth, async (req, res) => {
+    try {
+        const agent = await db.agents.getById(req.params.id);
+        if (!agent) return res.status(404).json({ error: 'Agent not found' });
+        if (agent.ownerAddress !== req.user.address) {
+            return res.status(403).json({ error: 'Not your agent' });
+        }
+
+        await db.agents.update(req.params.id, { status: 'revoked' });
+        console.log(`[AGENT] Revoked: "${agent.name}" by ${req.user.address.substring(0, 12)}...`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[API] DELETE /api/agents error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to revoke agent' });
+    }
+});
+
+// Get agent activity log
+app.get('/api/agents/:id/activity', requireAuth, async (req, res) => {
+    try {
+        const agent = await db.agents.getById(req.params.id);
+        if (!agent) return res.status(404).json({ error: 'Agent not found' });
+        if (agent.ownerAddress !== req.user.address) {
+            return res.status(403).json({ error: 'Not your agent' });
+        }
+
+        const result = await db.agentActivity.list({
+            filter: { agentId: req.params.id },
+            sort: { field: 'createdAt', order: 'desc' },
+            limit: Math.min(parseInt(req.query.limit) || 50, 200)
+        });
+        res.json(result);
+    } catch (e) {
+        console.error(`[API] GET /api/agents/:id/activity error: ${e.message}`);
+        res.status(500).json({ error: 'Failed to load activity' });
+    }
+});
+
+// ─── ZK PAYMENT INFO ────────────────────────────────────────────────
+
+app.get('/api/zk/status', (req, res) => {
+    res.json({
+        zkAvailable: zkPayments.isZKAvailable(),
+        description: zkPayments.isZKAvailable()
+            ? 'ZK private transfers are available via xeris-sdk'
+            : 'ZK transfers using local commitment scheme (amount visible on-chain, commitment tracked off-chain)'
+    });
 });
 
 // ─── SPA FALLBACK ────────────────────────────────────────────────────
@@ -824,6 +972,9 @@ app.get('/app', (req, res) => {
 async function start() {
     await db.initDB();
 
+    // Start agent engine
+    agentEngine.start();
+
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n========================================`);
         console.log(`  NFT Forge`);
@@ -832,6 +983,8 @@ async function start() {
         console.log(`  DB:      ${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON files'}`);
         console.log(`  AI:      ${aiImage.isConfigured() ? 'Replicate' : 'Mock SVG'}`);
         console.log(`  IPFS:    ${ipfs.isConfigured() ? 'Pinata' : 'Local fallback'}`);
+        console.log(`  ZK:      ${zkPayments.isZKAvailable() ? 'xeris-sdk' : 'Local commitments'}`);
+        console.log(`  Agents:  Engine running (30s cycles)`);
         console.log(`  Network: ${chain.networkName}`);
         console.log(`========================================\n`);
     });

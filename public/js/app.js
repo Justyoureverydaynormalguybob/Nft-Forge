@@ -231,6 +231,7 @@ const App = (() => {
         else if (view === 'mint') updateMintButtons();
         else if (view === 'marketplace') loadMarketplace();
         else if (view === 'my-nfts') loadMyNFTs();
+        else if (view === 'agents') loadAgents();
     }
 
     // ─── GALLERY ─────────────────────────────────────────────────────
@@ -789,6 +790,280 @@ const App = (() => {
         }
     }
 
+    // ─── AI AGENTS ──────────────────────────────────────────────────
+
+    let _strategies = [];
+
+    async function loadAgents() {
+        const list = document.getElementById('agents-list');
+        const badge = document.getElementById('zk-badge');
+        list.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading agents...</div>`;
+
+        try {
+            const [agentsData, zkData, stratData] = await Promise.all([
+                api('GET', '/api/agents'),
+                api('GET', '/api/zk/status'),
+                api('GET', '/api/agents/strategies')
+            ]);
+
+            _strategies = stratData.strategies || [];
+
+            // ZK badge
+            if (badge) {
+                badge.innerHTML = zkData.zkAvailable
+                    ? `<i data-lucide="shield-check" style="width:14px;height:14px;"></i> ZK Privacy Active`
+                    : `<i data-lucide="shield" style="width:14px;height:14px;"></i> ZK Commitments (Local)`;
+                badge.className = 'zk-status-badge ' + (zkData.zkAvailable ? 'zk-active' : 'zk-local');
+            }
+
+            const agents = agentsData.agents || [];
+            if (agents.length === 0) {
+                list.innerHTML = `<div class="empty-state">
+                    <i data-lucide="bot" class="empty-state-icon"></i>
+                    <div>No agents deployed yet. Create one to start autonomous trading!</div>
+                </div>`;
+                renderIcons();
+                return;
+            }
+
+            list.innerHTML = agents.map(agent => agentCard(agent)).join('');
+            renderIcons();
+        } catch (e) {
+            list.innerHTML = `<div class="error">
+                <i data-lucide="alert-circle" style="width:24px;height:24px;"></i>
+                Failed to load agents: ${escapeHtml(e.message)}
+            </div>`;
+            renderIcons();
+        }
+    }
+
+    function agentCard(agent) {
+        const config = agent.config || {};
+        const statusColors = { active: '#4ade80', paused: '#fbbf24', revoked: '#f87171' };
+        const statusColor = statusColors[agent.status] || '#6b6560';
+        const strategyName = _strategies.find(s => s.id === agent.strategy)?.name || agent.strategy;
+
+        return `
+        <div class="agent-card">
+            <div class="agent-header">
+                <div class="agent-avatar">
+                    <i data-lucide="bot" style="width:24px;height:24px;color:var(--accent);"></i>
+                </div>
+                <div class="agent-title">
+                    <div class="agent-name">${escapeHtml(agent.name)}</div>
+                    <div class="agent-strategy">${escapeHtml(strategyName)}</div>
+                </div>
+                <div class="agent-status" style="color:${statusColor};">
+                    <span class="status-dot" style="background:${statusColor};"></span>
+                    ${agent.status}
+                </div>
+            </div>
+            <div class="agent-stats">
+                <div class="agent-stat">
+                    <span class="agent-stat-label">Budget</span>
+                    <span class="agent-stat-value">${config.spendingLimit || 0} XRS</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">Spent</span>
+                    <span class="agent-stat-value">${(agent.totalSpent || 0).toFixed(2)} XRS</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">Max Buy</span>
+                    <span class="agent-stat-value">${config.maxBuyPrice || 0} XRS</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">Keywords</span>
+                    <span class="agent-stat-value">${escapeHtml(config.keywords || 'any')}</span>
+                </div>
+            </div>
+            <div class="agent-actions">
+                ${agent.status === 'active' ? `
+                    <button class="btn btn-small btn-secondary" onclick="App.toggleAgent('${agent.id}', 'paused')">
+                        <i data-lucide="pause" style="width:12px;height:12px;"></i> Pause
+                    </button>` : ''}
+                ${agent.status === 'paused' ? `
+                    <button class="btn btn-small btn-primary" onclick="App.toggleAgent('${agent.id}', 'active')">
+                        <i data-lucide="play" style="width:12px;height:12px;"></i> Resume
+                    </button>` : ''}
+                <button class="btn btn-small btn-secondary" onclick="App.showAgentActivity('${agent.id}')">
+                    <i data-lucide="activity" style="width:12px;height:12px;"></i> Activity
+                </button>
+                ${agent.status !== 'revoked' ? `
+                    <button class="btn btn-small btn-danger" onclick="App.revokeAgent('${agent.id}')">
+                        <i data-lucide="shield-off" style="width:12px;height:12px;"></i> Revoke
+                    </button>` : ''}
+            </div>
+        </div>`;
+    }
+
+    function showCreateAgent() {
+        const form = document.getElementById('create-agent-form');
+        if (!form.classList.contains('hidden')) {
+            form.classList.add('hidden');
+            return;
+        }
+
+        const stratOptions = _strategies.map(s =>
+            `<option value="${s.id}">${escapeHtml(s.name)} — ${escapeHtml(s.description)}</option>`
+        ).join('');
+
+        form.classList.remove('hidden');
+        form.innerHTML = `
+        <div class="agent-create-form">
+            <h3><i data-lucide="plus-circle" style="width:18px;height:18px;color:var(--accent);"></i> Deploy New Agent</h3>
+            <div class="form-group">
+                <label>Agent Name</label>
+                <input type="text" id="agent-name" placeholder="My Art Dealer" maxlength="50"/>
+            </div>
+            <div class="form-group">
+                <label>Strategy</label>
+                <select id="agent-strategy">${stratOptions}</select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Spending Limit (XRS)</label>
+                    <input type="number" id="agent-budget" value="10" min="1" max="1000" step="1"/>
+                </div>
+                <div class="form-group">
+                    <label>Max Buy Price (XRS)</label>
+                    <input type="number" id="agent-max-price" value="5" min="0.1" max="500" step="0.1"/>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Buys Per Cycle</label>
+                    <input type="number" id="agent-buys-cycle" value="1" min="1" max="5"/>
+                </div>
+                <div class="form-group">
+                    <label>Markup % (Flipper)</label>
+                    <input type="number" id="agent-markup" value="50" min="10" max="500"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Keywords (Collector, comma-separated)</label>
+                <input type="text" id="agent-keywords" placeholder="cyberpunk, space, abstract" maxlength="200"/>
+            </div>
+            <div class="agent-create-actions">
+                <button class="btn btn-primary" onclick="App.createAgent()">
+                    <i data-lucide="rocket" style="width:14px;height:14px;"></i> Deploy Agent
+                </button>
+                <button class="btn btn-secondary" onclick="document.getElementById('create-agent-form').classList.add('hidden')">
+                    Cancel
+                </button>
+            </div>
+        </div>`;
+        renderIcons();
+    }
+
+    async function createAgent() {
+        const name = document.getElementById('agent-name')?.value?.trim();
+        if (!name || name.length < 2) {
+            showToast('Agent name must be at least 2 characters', 'error');
+            return;
+        }
+
+        try {
+            await api('POST', '/api/agents', {
+                name,
+                strategy: document.getElementById('agent-strategy')?.value || 'bargain_hunter',
+                config: {
+                    spendingLimit: parseFloat(document.getElementById('agent-budget')?.value) || 10,
+                    maxBuyPrice: parseFloat(document.getElementById('agent-max-price')?.value) || 5,
+                    maxBuysPerCycle: parseInt(document.getElementById('agent-buys-cycle')?.value) || 1,
+                    markupPercent: parseInt(document.getElementById('agent-markup')?.value) || 50,
+                    keywords: document.getElementById('agent-keywords')?.value || ''
+                }
+            });
+
+            showToast('Agent deployed!', 'success');
+            document.getElementById('create-agent-form').classList.add('hidden');
+            loadAgents();
+        } catch (e) {
+            showToast('Deploy failed: ' + e.message, 'error');
+        }
+    }
+
+    async function toggleAgent(agentId, newStatus) {
+        try {
+            await api('PATCH', '/api/agents/' + agentId, { status: newStatus });
+            showToast('Agent ' + newStatus, 'success');
+            loadAgents();
+        } catch (e) {
+            showToast('Update failed: ' + e.message, 'error');
+        }
+    }
+
+    async function revokeAgent(agentId) {
+        if (!confirm('Revoke this agent? This permanently deactivates it.')) return;
+        try {
+            await api('DELETE', '/api/agents/' + agentId);
+            showToast('Agent revoked', 'success');
+            loadAgents();
+        } catch (e) {
+            showToast('Revoke failed: ' + e.message, 'error');
+        }
+    }
+
+    async function showAgentActivity(agentId) {
+        const detail = document.getElementById('agent-detail');
+        detail.classList.remove('hidden');
+        detail.innerHTML = `<div class="loading"><div class="spinner-accent"></div>Loading activity...</div>`;
+
+        try {
+            const data = await api('GET', '/api/agents/' + agentId + '/activity?limit=30');
+            const items = data.items || [];
+
+            if (items.length === 0) {
+                detail.innerHTML = `<div class="agent-activity">
+                    <h3><i data-lucide="activity" style="width:16px;height:16px;color:var(--accent);"></i> Activity Log</h3>
+                    <p class="text-muted">No activity yet. Agent will start evaluating listings on the next cycle.</p>
+                    <button class="btn btn-small btn-secondary" onclick="document.getElementById('agent-detail').classList.add('hidden')">Close</button>
+                </div>`;
+                renderIcons();
+                return;
+            }
+
+            const actionIcons = {
+                evaluate: 'search', buy_attempt: 'shopping-cart', buy_success: 'check-circle',
+                buy_failed: 'x-circle', relist: 'tag', error: 'alert-triangle'
+            };
+            const actionColors = {
+                evaluate: 'var(--text-secondary)', buy_attempt: 'var(--accent)',
+                buy_success: 'var(--success)', buy_failed: 'var(--error)',
+                relist: '#818cf8', error: 'var(--error)'
+            };
+
+            const rows = items.map(item => {
+                let details = {};
+                try { details = typeof item.details === 'string' ? JSON.parse(item.details) : (item.details || {}); } catch (e) {}
+                const icon = actionIcons[item.action] || 'circle';
+                const color = actionColors[item.action] || 'var(--text-muted)';
+                const time = new Date(item.createdAt).toLocaleTimeString();
+
+                return `<div class="activity-row">
+                    <i data-lucide="${icon}" style="width:14px;height:14px;color:${color};flex-shrink:0;"></i>
+                    <span class="activity-action" style="color:${color};">${item.action}</span>
+                    <span class="activity-detail">${escapeHtml(details.nftName || details.reason || details.error || '')}</span>
+                    ${details.priceXRS ? `<span class="activity-price">${details.priceXRS} XRS</span>` : ''}
+                    <span class="activity-time">${time}</span>
+                </div>`;
+            }).join('');
+
+            detail.innerHTML = `<div class="agent-activity">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3><i data-lucide="activity" style="width:16px;height:16px;color:var(--accent);"></i> Activity Log</h3>
+                    <button class="btn btn-small btn-secondary" onclick="document.getElementById('agent-detail').classList.add('hidden')">
+                        <i data-lucide="x" style="width:12px;height:12px;"></i> Close
+                    </button>
+                </div>
+                <div class="activity-list">${rows}</div>
+            </div>`;
+            renderIcons();
+        } catch (e) {
+            detail.innerHTML = `<div class="error">Failed to load activity</div>`;
+        }
+    }
+
     // ─── UI HELPERS ──────────────────────────────────────────────────
 
     function updateUI() {
@@ -918,8 +1193,12 @@ const App = (() => {
                         <span class="stat-value">${stats.totalListings}</span> Listed
                     </div>
                     <div class="stat-item">
-                        <i data-lucide="cpu" style="width:14px;height:14px;"></i>
-                        AI Powered
+                        <i data-lucide="bot" style="width:14px;height:14px;"></i>
+                        <span class="stat-value">${stats.totalAgents || 0}</span> Agents
+                    </div>
+                    <div class="stat-item">
+                        <i data-lucide="shield" style="width:14px;height:14px;"></i>
+                        ${stats.zkAvailable ? 'ZK Private' : 'ZK Ready'}
                     </div>`;
                 renderIcons();
             }
@@ -948,7 +1227,14 @@ const App = (() => {
         buyNFT,
         loadGallery,
         loadMarketplace,
-        loadMyNFTs
+        loadMyNFTs,
+        // Agent functions
+        loadAgents,
+        showCreateAgent,
+        createAgent,
+        toggleAgent,
+        revokeAgent,
+        showAgentActivity
     };
 })();
 

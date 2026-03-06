@@ -44,6 +44,10 @@
             <i data-lucide="image" style="width:15px;height:15px;"></i>
             My NFTs
         </button>
+        <button class="nav-tab auth-required hidden" data-view="agents">
+            <i data-lucide="bot" style="width:15px;height:15px;"></i>
+            AI Agents
+        </button>
     </div>
 
     <!-- Status bar -->
@@ -121,6 +125,24 @@
             <p class="view-desc">Your personal NFT collection</p>
         </div>
         <div id="my-nfts-grid" class="nft-grid"></div>
+    </div>
+
+    <!-- AI Agents View -->
+    <div id="view-agents" class="view">
+        <div class="view-header">
+            <h2><i data-lucide="bot" class="view-icon"></i> AI Art Agents</h2>
+            <p class="view-desc">Deploy autonomous agents that buy, collect, and flip NFTs on your behalf</p>
+        </div>
+        <div class="agent-controls">
+            <button class="btn btn-primary" onclick="App.showCreateAgent()">
+                <i data-lucide="plus" style="width:14px;height:14px;"></i>
+                Deploy New Agent
+            </button>
+            <div class="zk-status-badge" id="zk-badge"></div>
+        </div>
+        <div id="create-agent-form" class="hidden"></div>
+        <div id="agents-list"></div>
+        <div id="agent-detail" class="hidden"></div>
     </div>
 
     <!-- NFT Detail Modal -->
