@@ -47,8 +47,8 @@ app.use(helmet({
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            imgSrc: ["'self'", "data:", "https://gateway.pinata.cloud", "https://images.unsplash.com", "https://replicate.delivery", "https://*.replicate.delivery", "blob:"],
-            connectSrc: ["'self'", "https://api.replicate.com", "https://unpkg.com"]
+            imgSrc: ["'self'", "data:", "https://gateway.pinata.cloud", "https://images.unsplash.com", "https://replicate.delivery", "https://pbxt.replicate.delivery", "blob:"],
+            connectSrc: ["'self'", "https://unpkg.com"]
         }
     }
 }));
@@ -101,7 +101,7 @@ function requireAuth(req, res, next) {
 // Get a challenge to sign (proves wallet ownership)
 app.post('/api/auth/challenge', (req, res) => {
     const { address } = req.body;
-    if (!address || typeof address !== 'string' || address.length < 20) {
+    if (!address || typeof address !== 'string' || address.length < 20 || address.length > 50) {
         return res.status(400).json({ error: 'Invalid wallet address' });
     }
     // Clean old challenges (>5 min) and enforce cap
@@ -129,6 +129,9 @@ app.post('/api/auth/connect', async (req, res) => {
         pendingChallenges.delete(address);
 
         // Verify signature if wallet supports it
+        if (signature && typeof signature === 'string' && signature.length > 500) {
+            return res.status(400).json({ error: 'Invalid signature' });
+        }
         if (signature && signature !== 'wallet-browser-auth' && pending) {
             try {
                 const sigBytes = Buffer.from(signature, 'base64');

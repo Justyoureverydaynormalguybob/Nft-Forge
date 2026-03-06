@@ -97,7 +97,9 @@ function toBytes32(input) {
             const padded = Buffer.alloc(32);
             decoded.copy(padded);
             return padded;
-        } catch (e) {}
+        } catch (e) {
+            // Not valid base58 — fall through to error below
+        }
     }
     throw new Error('Cannot convert to 32-byte hash: ' + typeof input + ' len=' + (input?.length || 0));
 }
@@ -106,10 +108,8 @@ function toBytes32(input) {
 
 function writeU64LE(value) {
     const buf = Buffer.alloc(8);
-    const lo = value % 0x100000000;
-    const hi = Math.floor(value / 0x100000000);
-    buf.writeUInt32LE(lo >>> 0, 0);
-    buf.writeUInt32LE(hi >>> 0, 4);
+    const big = BigInt(value);
+    buf.writeBigUInt64LE(big);
     return buf;
 }
 
@@ -302,8 +302,6 @@ module.exports = {
     encodeCompactU16,
     writeU64LE,
     writeU32LE,
-    base58Decode,
-    base58Encode,
     LAMPORTS_PER_XRS,
     CERTIFICATION_FEE_XRS,
     CERTIFICATION_FEE_LAMPORTS
