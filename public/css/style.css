@@ -118,31 +118,29 @@ body {
 
 .nav {
     display: flex;
+    flex-wrap: wrap;
     gap: 2px;
-    padding: 6px 16px;
+    padding: 6px 10px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
 }
 
-.nav::-webkit-scrollbar { display: none; }
-
 .nav-tab {
-    padding: 8px 14px;
+    padding: 7px 10px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-muted);
     transition: all 0.2s ease;
-    white-space: nowrap;
     border: none;
     background: none;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     font-weight: 500;
+    flex: 1 1 auto;
+    justify-content: center;
+    min-width: 0;
 }
 
 .nav-tab:hover { color: var(--text-primary); background: var(--bg-card); }
